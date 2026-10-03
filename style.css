@@ -25,3 +25,12 @@ form.inline{display:flex;gap:.5rem;margin:0}
 form.inline input{flex:1}
 h3{font-family:Fraunces,Georgia,serif;margin:1.5rem 0 .3rem}
 #circles button{margin:0 .4rem .4rem 0}
+header{position:relative}
+.topbar{position:absolute;top:1rem;right:1.25rem;display:flex;gap:.6rem;align-items:center;font-size:.9rem}
+body.wide header,body.wide main{max-width:72rem}
+form.inline{flex-wrap:wrap;align-items:center;margin:.8rem 0}
+.num{width:4.5rem;flex:none!important}
+.tablewrap{overflow-x:auto;margin:.8rem 0}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{text-align:left;padding:.4rem .6rem;border-bottom:1px solid var(--line);vertical-align:top}
+.editrow td{background:#fff}

@@ -9,9 +9,9 @@
 </head>
 <body>
 <header>
+  <div class="topbar"><span id="who"></span><button id="out" class="link" hidden>Sign out</button></div>
   <h1 class="app-name">Plot Weave</h1>
-  <p>Stories pass through a circle of writers, one paragraph at a time.</p>
-  <p class="note"><span id="who"></span> <button id="out" class="link" hidden>Sign out</button></p>
+  <p id="tagline">Stories pass through a circle of writers, one paragraph at a time.</p>
 </header>
 <main>
   <form id="gate" hidden>
@@ -26,13 +26,12 @@
     <button>Continue</button>
   </form>
   <section id="app" hidden>
-    <div id="circles"></div>
     <div id="prompt"></div>
     <form id="form" hidden>
-      <label for="text">Your turn</label>
+      <label for="text">Your paragraph</label>
       <textarea id="text" maxlength="500" rows="5" required></textarea>
       <div class="row"><span></span><span id="count" class="note">0/500</span></div>
-      <button>Add to story</button>
+      <button id="send">Add to story</button>
     </form>
   </section>
   <section id="admin" hidden>
@@ -41,6 +40,11 @@
       <form id="newcircle" class="inline"><input id="cname" placeholder="New circle name" required maxlength="60"><button>Create circle</button></form>
       <button id="newday">Start next day</button>
     </div>
+    <form id="vis" class="inline">
+      <span>Writers see the first</span><input id="vfirst" class="num" type="number" min="0" max="20" required>
+      <span>and last</span><input id="vlast" class="num" type="number" min="0" max="20" required>
+      <span>paragraphs of a story.</span><button>Save</button>
+    </form>
     <div id="circlelist"></div>
   </section>
   <section id="finished" hidden>
