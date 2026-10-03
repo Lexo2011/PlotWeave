@@ -18,3 +18,10 @@ article small{opacity:.6;font-size:.8rem}
 :focus-visible{outline:3px solid var(--mark);outline-offset:2px}
 [hidden]{display:none!important}
 #pwrow{display:grid;gap:.6rem}
+details{border-top:1px solid var(--line);padding:.6rem 0}
+summary{cursor:pointer}
+.edit{display:grid;gap:.4rem;margin:.6rem 0}
+form.inline{display:flex;gap:.5rem;margin:0}
+form.inline input{flex:1}
+h3{font-family:Fraunces,Georgia,serif;margin:1.5rem 0 .3rem}
+#circles button{margin:0 .4rem .4rem 0}

@@ -1,86 +1,85 @@
-const $=s=>document.querySelector(s),cfg=window.CONFIG||{};
-const live=!!(cfg.SUPABASE_URL&&cfg.SUPABASE_ANON_KEY&&window.supabase);
-const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const cfg=window.CONFIG||{},$=s=>document.querySelector(s);
+const APP=cfg.APP_NAME||'Plot Weave',ADMIN=(cfg.ADMIN_USERNAME||'admin').toLowerCase();
+const ADMIN_EMAIL=cfg.ADMIN_EMAIL||'admin@example.com',SHARED=cfg.SHARED_EMAIL||'shared@example.com';
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=d=>d?new Date(d).toLocaleString([],{dateStyle:'medium',timeStyle:'short'}):'-';
+document.title=APP;document.querySelectorAll('.app-name').forEach(e=>e.textContent=APP);
 
-// Demo backend: everything lives in localStorage
-const Demo={
-  s:JSON.parse(localStorage.getItem('sr')||'null')||{day:0,name:null,turn:null,stories:[
-    {id:1,done:false,parts:[{a:'Mara',t:'The lighthouse keeper found a door in the cliff that had not been there yesterday.'}]},
-    {id:2,done:false,parts:[{a:'Joss',t:'Nobody in the village remembered who had ordered the enormous cake.'}]}]},
-  save(){localStorage.setItem('sr',JSON.stringify(this.s))},
-  async user(){return this.s.name},
-  async signIn(n){this.s.name=n;this.save()},
-  async signOut(){this.s.name=null;this.save()},
-  async getTurn(){
-    const s=this.s;
-    if(!s.turn||s.turn.day!==s.day){
-      const open=s.stories.filter(x=>!x.done&&!x.parts.some(p=>p.a===s.name));
-      const pick=open[Math.floor(Math.random()*open.length)];
-      s.turn={day:s.day,id:pick?pick.id:null,done:false};this.save();
-    }
-    const st=s.stories.find(x=>x.id===s.turn.id);
-    return{done:s.turn.done,last:st&&st.parts.at(-1).t,count:st?st.parts.length:0};
-  },
-  async submit(t,fin){
-    const s=this.s;let st=s.stories.find(x=>x.id===s.turn.id);
-    if(!st){st={id:Date.now(),done:false,parts:[]};s.stories.push(st)}
-    st.parts.push({a:s.name,t});
-    if(fin||st.parts.length>=10)st.done=true;
-    s.turn.done=true;this.save();
-  },
-  async finished(){return this.s.stories.filter(x=>x.done).map(x=>x.parts)},
-  nextDay(){this.s.day++;this.save()}
-};
+if(!(cfg.SUPABASE_URL&&cfg.SUPABASE_ANON_KEY&&window.supabase)){
+  document.querySelector('main').innerHTML='<p>Add your Supabase URL and anon key to config.js.</p>';
+}else{
+const sb=supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
+let me=null,isAdmin=false;
+const rpc=async(f,a)=>{const{data,error}=await sb.rpc(f,a);if(error)throw error;return data};
+const show=(id,on)=>{$('#'+id).hidden=!on};
+const act=async f=>{try{await f();await render()}catch(x){alert(x.message)}};
+const byTime=(a,b)=>a.created_at<b.created_at?-1:1;
 
-// Live backend: Supabase (see setup.sql)
-const sb=live?supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY):null;
-const Live={
-  name:null,
-  async user(){
-    const{data}=await sb.auth.getSession();
-    this.name=data.session?localStorage.getItem('author'):null;return this.name;
-  },
-  async signIn(name,pw){
-    localStorage.setItem('author',name);
-    const{error}=await sb.auth.signInWithPassword({email:cfg.SHARED_EMAIL||'shared@example.com',password:pw});
-    if(error){localStorage.removeItem('author');throw new Error('Wrong password.')}
-  },
-  async signOut(){localStorage.removeItem('author');await sb.auth.signOut()},
-  async getTurn(){
-    const{data,error}=await sb.rpc('get_turn',{p_user:this.name});if(error)throw error;
-    return{done:data.done,last:data.last,count:data.count||0};
-  },
-  async submit(t,fin){
-    const{error}=await sb.rpc('submit_turn',{p_user:this.name,p_body:t,p_finish:fin});if(error)throw error;
-  },
-  async finished(){
-    const{data}=await sb.from('stories').select('contributions(author,body,created_at)').eq('finished',true).order('created_at',{ascending:false}).limit(20);
-    return(data||[]).map(s=>s.contributions.sort((a,b)=>a.created_at<b.created_at?-1:1).map(c=>({a:c.author,t:c.body})));
-  }
-};
-
-const B=live?Live:Demo;
 async function render(){
-  const u=await B.user();
-  $('#auth').hidden=!!u;$('#app').hidden=!u;
-  $('#who').textContent=u?'Signed in as '+u:'';
-  $('#mode').textContent=live?'':'Demo mode: stories stay in this browser. Add Supabase keys in config.js to go live (this also turns on the password).';
-  $('#next').hidden=live;
-  if(u){
-    const t=await B.getTurn();
-    $('#prompt').innerHTML=t.done?'<p>Your turn is done for today. Come back tomorrow for a new story.</p>'
-      :t.last?`<p>Story with ${t.count} ${t.count===1?'turn':'turns'} so far. The last line:</p><blockquote>${esc(t.last)}</blockquote>`
-      :'<p>No open stories right now. Start a new one.</p>';
-    $('#form').hidden=t.done;
-  }
-  const f=await B.finished();
-  $('#done').innerHTML=f.length?f.map(p=>'<article>'+p.map(x=>`<p>${esc(x.t)} <small>${esc(x.a)}</small></p>`).join('')+'</article>').join(''):'<p>Nothing finished yet. Stories close after 10 turns or when a writer ends them.</p>';
+  const{data}=await sb.auth.getSession(),ses=data.session;
+  isAdmin=!!ses&&ses.user.email===ADMIN_EMAIL;
+  me=ses?(isAdmin?ADMIN:localStorage.getItem('author')):null;
+  if(me===ADMIN&&!isAdmin)me=null;
+  show('gate',!ses);show('login',!!ses&&!me);show('app',!!me&&!isAdmin);show('admin',isAdmin);show('finished',!!ses);
+  $('#who').textContent=me?'Signed in as '+me:'';show('out',!!me);
+  if(me&&!isAdmin)await renderUser();
+  if(isAdmin)await renderAdmin();
+  if(ses)await renderFinished();
 }
-$('#pw').required=live;$('#pwrow').hidden=!live;
-$('#login').onsubmit=async e=>{e.preventDefault();try{await B.signIn($('#id').value.trim().toLowerCase(),$('#pw').value);$('#pw').value='';render()}catch(x){alert(x.message)}};
-$('#form').onsubmit=async e=>{e.preventDefault();try{await B.submit($('#text').value.trim(),$('#fin').checked);$('#text').value='';$('#fin').checked=false;$('#count').textContent='0/500';render()}catch(x){alert(x.message)}};
-$('#out').onclick=async()=>{await B.signOut();render()};
-$('#next').onclick=()=>{Demo.nextDay();render()};
+
+async function renderUser(){
+  const s=await rpc('my_state',{p_user:me}),t=s.turn;
+  $('#prompt').innerHTML=t?(t.story_id
+    ?`<p>${esc(t.circle)}: a story with ${t.count} ${t.count==1?'paragraph':'paragraphs'} so far. The last one:</p><blockquote>${esc(t.last)}</blockquote>`
+    :`<p>${esc(t.circle)}: start a new story. Write its first paragraph.</p>`)
+    :'<p>No turn is waiting for you. A new one arrives when the admin starts the next day.</p>';
+  show('form',!!t);
+  $('#circles').innerHTML=(s.mine.length?`<p>Your circles: ${s.mine.map(esc).join(', ')}</p>`:'<p>You are not in a circle yet.</p>')
+    +s.joinable.map(c=>`<button data-join="${c.id}">Join ${esc(c.name)}</button>`).join('');
+}
+
+async function renderAdmin(){
+  const[a,b]=await Promise.all([
+    sb.from('circles').select('id,name,concluded,created_at,members(username),stories(id,starter,created_at,contributions(id,author,body,created_at,edited_at))').order('created_at',{ascending:false}),
+    sb.from('assignments').select('story_id,circle_id,username').eq('done',false)]);
+  if(a.error)throw a.error;
+  const open=[...document.querySelectorAll('#circlelist details[open]')].map(d=>d.dataset.sid),pend=b.data||[];
+  $('#circlelist').innerHTML=a.data.map(c=>{
+    const M=c.members.length,full=M>0&&c.stories.length>=M&&c.stories.every(s=>s.contributions.length>=M);
+    const rows=c.stories.map(s=>{
+      const cons=s.contributions.sort(byTime),p=pend.find(x=>x.story_id===s.id);
+      const last=[s.created_at,...cons.flatMap(x=>[x.created_at,x.edited_at])].filter(Boolean).sort().at(-1);
+      return `<details data-sid="${s.id}"${open.includes(s.id)?' open':''}><summary>Story by ${esc(s.starter)}: ${cons.length}/${M} paragraphs, ${p?'turn: '+esc(p.username):'no turn pending'}, last edit ${fmt(last)}</summary>`
+        +cons.map(x=>`<div class="edit"><small>${esc(x.author)}</small><textarea maxlength="500" data-id="${x.id}">${esc(x.body)}</textarea><button data-save="${x.id}">Save</button></div>`).join('')+'</details>';
+    }).join('');
+    const starting=pend.filter(x=>x.circle_id===c.id&&!x.story_id).map(x=>esc(x.username));
+    return `<article><h3>${esc(c.name)}${c.concluded?' (concluded)':''}</h3><p class="note">Members: ${c.members.map(m=>esc(m.username)).join(', ')||'none yet'}${starting.length?'. Asked to start a story: '+starting.join(', '):''}</p>${rows}${!c.concluded&&full?`<button data-conclude="${c.id}">Conclude circle</button>`:''}</article>`;
+  }).join('')||'<p>No circles yet. Create one above.</p>';
+}
+
+async function renderFinished(){
+  const{data}=await sb.from('circles').select('name,stories(contributions(author,body,created_at))').eq('concluded',true).order('created_at',{ascending:false});
+  $('#done').innerHTML=(data||[]).map(c=>`<h3>${esc(c.name)}</h3>`+c.stories.map(s=>'<article>'+s.contributions.sort(byTime).map(x=>`<p>${esc(x.body)} <small>${esc(x.author)}</small></p>`).join('')+'</article>').join('')).join('')||'<p>No concluded circles yet.</p>';
+}
+
+$('#gate').onsubmit=async e=>{e.preventDefault();
+  const{error}=await sb.auth.signInWithPassword({email:SHARED,password:$('#sitepw').value});
+  if(error)return alert('Wrong password.');$('#sitepw').value='';render()};
+$('#id').oninput=e=>{const on=e.target.value.trim().toLowerCase()===ADMIN;show('adminrow',on);$('#adminpw').required=on};
+$('#login').onsubmit=async e=>{e.preventDefault();const n=$('#id').value.trim().toLowerCase();
+  if(n===ADMIN){
+    const{error}=await sb.auth.signInWithPassword({email:ADMIN_EMAIL,password:$('#adminpw').value});
+    if(error)return alert('Wrong admin password.');$('#adminpw').value='';
+  }else localStorage.setItem('author',n);
+  render()};
+$('#out').onclick=async()=>{localStorage.removeItem('author');if(isAdmin)await sb.auth.signOut();render()};
+$('#circles').onclick=e=>{const id=e.target.dataset.join;if(id)act(()=>rpc('join_circle',{p_user:me,p_circle:id}))};
 $('#text').oninput=e=>$('#count').textContent=e.target.value.length+'/500';
-if(live)sb.auth.onAuthStateChange(()=>render());
+$('#form').onsubmit=e=>{e.preventDefault();act(async()=>{await rpc('submit_turn',{p_user:me,p_body:$('#text').value});$('#text').value='';$('#count').textContent='0/500'})};
+$('#newcircle').onsubmit=e=>{e.preventDefault();act(async()=>{const{error}=await sb.from('circles').insert({name:$('#cname').value.trim()});if(error)throw error;$('#cname').value=''})};
+$('#newday').onclick=()=>{if(confirm('Start the next day? Turns nobody has answered yet are handed out again.'))act(async()=>{alert(await rpc('run_new_day')+' turns handed out.')})};
+$('#admin').onclick=e=>{const d=e.target.dataset;
+  if(d.save)act(async()=>{const{error}=await sb.from('contributions').update({body:document.querySelector(`textarea[data-id="${d.save}"]`).value.trim(),edited_at:new Date().toISOString()}).eq('id',d.save);if(error)throw error});
+  if(d.conclude)act(()=>rpc('conclude_circle',{p_circle:d.conclude}))};
 render();
+}

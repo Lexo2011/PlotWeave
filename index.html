@@ -3,37 +3,48 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Story Relay</title>
+<title>Plot Weave</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Literata:opsz,wght@7..72,400;7..72,600&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header>
-  <h1>Story Relay</h1>
-  <p>One paragraph a day. Every day you get a stranger's story and carry it one step further.</p>
-  <p id="mode" class="note"></p>
+  <h1 class="app-name">Plot Weave</h1>
+  <p>Stories pass through a circle of writers, one paragraph at a time.</p>
+  <p class="note"><span id="who"></span> <button id="out" class="link" hidden>Sign out</button></p>
 </header>
 <main>
-  <section id="auth" hidden>
-    <form id="login">
-      <label for="id">Username</label>
-      <input id="id" required pattern="[A-Za-z0-9_]{2,24}" title="2 to 24 letters, numbers or underscores" autocomplete="username">
-      <div id="pwrow"><label for="pw">Site password</label><input id="pw" type="password" autocomplete="current-password"></div>
-      <button>Start writing</button>
-    </form>
-  </section>
+  <form id="gate" hidden>
+    <label for="sitepw">Site password</label>
+    <input id="sitepw" type="password" required autocomplete="current-password">
+    <button>Enter</button>
+  </form>
+  <form id="login" hidden>
+    <label for="id">Username</label>
+    <input id="id" required pattern="[A-Za-z0-9_]{2,24}" title="2 to 24 letters, numbers or underscores" autocomplete="username">
+    <div id="adminrow" hidden><label for="adminpw">Admin password</label><input id="adminpw" type="password" autocomplete="current-password"></div>
+    <button>Continue</button>
+  </form>
   <section id="app" hidden>
-    <p class="note"><span id="who"></span> <button id="out" class="link">Sign out</button> <button id="next" class="link">Simulate next day</button></p>
+    <div id="circles"></div>
     <div id="prompt"></div>
-    <form id="form">
+    <form id="form" hidden>
       <label for="text">Your turn</label>
       <textarea id="text" maxlength="500" rows="5" required></textarea>
-      <div class="row"><label><input type="checkbox" id="fin"> This ends the story</label><span id="count" class="note">0/500</span></div>
+      <div class="row"><span></span><span id="count" class="note">0/500</span></div>
       <button>Add to story</button>
     </form>
   </section>
-  <section>
-    <h2>Finished stories</h2>
+  <section id="admin" hidden>
+    <h2>Admin</h2>
+    <div class="row">
+      <form id="newcircle" class="inline"><input id="cname" placeholder="New circle name" required maxlength="60"><button>Create circle</button></form>
+      <button id="newday">Start next day</button>
+    </div>
+    <div id="circlelist"></div>
+  </section>
+  <section id="finished" hidden>
+    <h2>Concluded stories</h2>
     <div id="done"></div>
   </section>
 </main>
