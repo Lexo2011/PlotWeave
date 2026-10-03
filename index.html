@@ -16,8 +16,9 @@
 <main>
   <section id="auth" hidden>
     <form id="login">
-      <label for="id" id="idlabel">Your name</label>
-      <input id="id" required>
+      <label for="id">Username</label>
+      <input id="id" required pattern="[A-Za-z0-9_]{2,24}" title="2 to 24 letters, numbers or underscores" autocomplete="username">
+      <div id="pwrow"><label for="pw">Site password</label><input id="pw" type="password" autocomplete="current-password"></div>
       <button>Start writing</button>
     </form>
   </section>

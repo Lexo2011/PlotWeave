@@ -16,3 +16,5 @@ button.link{background:none;color:inherit;padding:0 .4rem;text-decoration:underl
 article{border-top:1px solid var(--line);padding:1rem 0}
 article small{opacity:.6;font-size:.8rem}
 :focus-visible{outline:3px solid var(--mark);outline-offset:2px}
+[hidden]{display:none!important}
+#pwrow{display:grid;gap:.6rem}
