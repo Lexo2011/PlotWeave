@@ -18,7 +18,7 @@ Static site (plain HTML/CSS/JS) on GitHub Pages, with Supabase as the shared bac
 ## How it works
 - Visitors enter the site password once per device, then just a username. Typing the admin username asks for the admin password.
 - The admin creates story circles. Users join a circle from their page.
-- "Start next day" (admin) hands out turns: members without a story start one; every other story goes to a random member of that circle who hasn't written in it yet (one turn per member per day). Unanswered turns are handed out again.
+- "Start next day" (admin, per circle) hands out turns: members without a story start one; every other story goes to a random member of that circle who hasn't written in it yet (one turn per member per day). Unanswered turns are handed out again.
 - Each member writes in each story of the circle exactly once. When every story has a paragraph from every member, the admin can conclude the circle and its stories become readable for everyone.
 - The admin can edit any paragraph from the dashboard.
 - A writer can change their paragraph until the admin starts the next day.

@@ -37,9 +37,9 @@ begin
   if auth.uid() is null or u !~ '^[a-z0-9_]{2,24}$' then raise exception 'Not allowed'; end if;
   select json_build_object('story_id',a.story_id,'done',a.done,
       'own',(select body from contributions where story_id=a.story_id and author=u),
-      'parts',case when a.done or a.story_id is null then '[]'::json else (
+      'parts',case when a.story_id is null then '[]'::json else (
         select coalesce(json_agg(json_build_object('n',r.rn,'body',r.body) order by r.rn),'[]'::json)
-        from (select body, row_number() over(order by created_at) rn, count(*) over() cnt from contributions where story_id=a.story_id) r
+        from (select body, row_number() over(order by created_at) rn, count(*) over() cnt from contributions where story_id=a.story_id and author<>u) r
         where r.rn <= vf or r.rn > r.cnt - vl) end)
     into t from assignments a join circles c on c.id=a.circle_id
     where a.username=u and a.active and not c.concluded order by a.assigned_at desc limit 1;
@@ -78,13 +78,15 @@ begin
   update contributions set body=trim(p_body), edited_at=now(), edited_by=u where story_id=a.story_id and author=u;
 end $$;
 
--- The "new day" logic. Also callable from a schedule (pg_cron) as: select do_new_day();
-create or replace function do_new_day() returns int language plpgsql security definer set search_path=public as $$
+-- The "new day" logic for one circle (or all circles when called without an argument, e.g. from pg_cron: select do_new_day();).
+drop function if exists do_new_day();
+drop function if exists run_new_day();
+create or replace function do_new_day(p_circle uuid default null) returns int language plpgsql security definer set search_path=public as $$
 declare c record; s record; m text; n int := 0; busy text[];
 begin
-  delete from assignments where not done;        -- unanswered turns are handed out again
-  update assignments set active=false where active;  -- yesterday's turns can no longer be edited
-  for c in select id from circles where not concluded loop
+  delete from assignments where not done and (p_circle is null or circle_id=p_circle);  -- unanswered turns are handed out again
+  update assignments set active=false where active and (p_circle is null or circle_id=p_circle);  -- yesterday's turns can no longer be edited
+  for c in select id from circles where not concluded and (p_circle is null or id=p_circle) loop
     busy := '{}';
     -- members who have not started a story yet are asked to start one
     for m in select mb.username from members mb where mb.circle_id=c.id
@@ -104,10 +106,10 @@ begin
   return n;
 end $$;
 
-create or replace function run_new_day() returns int language plpgsql security definer set search_path=public as $$
+create or replace function run_new_day(p_circle uuid) returns int language plpgsql security definer set search_path=public as $$
 begin
   if not is_admin() then raise exception 'Admin only'; end if;
-  return do_new_day();
+  return do_new_day(p_circle);
 end $$;
 
 create or replace function circle_ready(p_circle uuid) returns boolean language sql stable security definer set search_path=public as $$
@@ -123,6 +125,6 @@ begin
   update circles set concluded=true where id=p_circle;
 end $$;
 
-revoke execute on function do_new_day() from public, anon, authenticated;
-revoke execute on function is_admin(), my_state(text), join_circle(text,uuid), submit_turn(text,text), edit_turn(text,text), run_new_day(), circle_ready(uuid), conclude_circle(uuid) from public, anon;
-grant execute on function is_admin(), my_state(text), join_circle(text,uuid), submit_turn(text,text), edit_turn(text,text), run_new_day(), circle_ready(uuid), conclude_circle(uuid) to authenticated;
+revoke execute on function do_new_day(uuid) from public, anon, authenticated;
+revoke execute on function is_admin(), my_state(text), join_circle(text,uuid), submit_turn(text,text), edit_turn(text,text), run_new_day(uuid), circle_ready(uuid), conclude_circle(uuid) from public, anon;
+grant execute on function is_admin(), my_state(text), join_circle(text,uuid), submit_turn(text,text), edit_turn(text,text), run_new_day(uuid), circle_ready(uuid), conclude_circle(uuid) to authenticated;
