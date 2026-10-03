@@ -1,0 +1,18 @@
+:root{--paper:#eef0f6;--ink:#1b2140;--mark:#f2b134;--line:#c9cde0}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:1.05rem/1.7 Literata,Georgia,serif}
+header,main{max-width:40rem;margin:0 auto;padding:0 1.25rem}
+header{padding-top:3rem}
+h1,h2{font-family:Fraunces,Georgia,serif;font-weight:600;line-height:1.1}
+h1{font-size:clamp(2.4rem,8vw,3.6rem);margin:0 0 .5rem}
+h2{font-size:1.6rem;margin:3rem 0 1rem}
+.note{font-size:.9rem;opacity:.75}
+blockquote{margin:1rem 0;padding:.9rem 1.1rem;font-size:1.2rem;background:linear-gradient(transparent 8%,var(--mark) 8%,var(--mark) 92%,transparent 92%) no-repeat left/4px 100%,#fff;border-radius:2px}
+form{display:grid;gap:.6rem;margin:1.25rem 0}
+textarea,input:not([type=checkbox]){font:inherit;padding:.7rem;border:1px solid var(--line);border-radius:4px;background:#fff;color:inherit}
+button{font:inherit;font-weight:600;padding:.7rem 1.2rem;background:var(--ink);color:var(--paper);border:0;border-radius:4px;cursor:pointer}
+button.link{background:none;color:inherit;padding:0 .4rem;text-decoration:underline;font-weight:400;font-size:.9rem}
+.row{display:flex;justify-content:space-between;align-items:center}
+article{border-top:1px solid var(--line);padding:1rem 0}
+article small{opacity:.6;font-size:.8rem}
+:focus-visible{outline:3px solid var(--mark);outline-offset:2px}
