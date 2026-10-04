@@ -29,6 +29,7 @@ Only what is needed to connect and log in stays in `config.js`:
 - A writer who has not written when the next day starts misses that turn for good. The circle moves on without the paragraph, and the admin sees a "Missed turns" notice on that circle.
 - A circle is finished when no turn is open and every member has written or missed every turn. The admin can then conclude it and its stories become readable for everyone, without the names of who wrote what (only the admin sees those).
 - The admin can edit any paragraph from the dashboard.
+- "Kreis löschen" does not delete anything: it sets `archived_at` on the circle, which hides it everywhere. To bring a circle back, set `archived_at` to null in the Supabase table editor.
 - A writer can change their paragraph until the next day starts.
 - How much of a story a writer sees (first N and last N paragraphs) is enforced by the database.
 - The background colour changes every day (same colour for everyone on the same date).

@@ -89,7 +89,7 @@ async function renderUser(){
 async function renderAdmin(){
   await rpc('tick');  // hands out turns for circles whose daily time has passed
   const[a,b]=await Promise.all([
-    sb.from('circles').select('*,members(username),stories(id,starter,created_at,contributions(id,author,body,created_at,edited_at,edited_by))').order('created_at',{ascending:false}),
+    sb.from('circles').select('*,members(username),stories(id,starter,created_at,contributions(id,author,body,created_at,edited_at,edited_by))').is('archived_at',null).order('created_at',{ascending:false}),
     sb.from('assignments').select('story_id,circle_id,username,done,active,missed,seen,assigned_at')]);
   if(a.error)throw a.error;if(b.error)throw b.error;
   $('#site').innerHTML=SITE.map(f=>field(f,site[f[0]])).join('')+'<p class="note">Ein leeres Feld verwendet den grau angezeigten Text.</p><button>Seiteneinstellungen speichern</button>';
@@ -131,7 +131,7 @@ async function renderAdmin(){
 
 async function renderFinished(){
   // only the admin reads the tables (with authors); everyone else gets the stories without names
-  const data=isAdmin?(await sb.from('circles').select('name,stories(contributions(author,body,created_at))').eq('concluded',true).order('created_at',{ascending:false})).data:await rpc('finished_stories');
+  const data=isAdmin?(await sb.from('circles').select('name,stories(contributions(author,body,created_at))').eq('concluded',true).is('archived_at',null).order('created_at',{ascending:false})).data:await rpc('finished_stories');
   $('#done').innerHTML=(data||[]).map(c=>`<h3>${esc(c.name)}</h3>`+c.stories.map(s=>'<article>'+s.contributions.sort(byTime).map(x=>`<p>${esc(x.body)}${x.author?` <small>${esc(x.author)}</small>`:''}</p>`).join('')+'</article>').join('')).join('')||`<p>${esc(txt('finished_empty'))}</p>`;
 }
 
@@ -168,6 +168,7 @@ $('#admin').onclick=e=>{const d=e.target.dataset;
   if(d.seen)act(async()=>{const{error}=await sb.from('assignments').update({seen:true}).eq('circle_id',d.seen).eq('missed',true);if(error)throw error});
   if(d.conclude)act(()=>rpc('conclude_circle',{p_circle:d.conclude}));
   if(d.newday&&confirm('Den nächsten Tag für diesen Kreis starten? Wer bis jetzt nicht geschrieben hat, wird übersprungen, und der Absatz von gestern kann nicht mehr geändert werden.'))act(async()=>{alert(await rpc('run_new_day',{p_circle:d.newday})+' Schreibende sind jetzt an der Reihe.')});
-  if(d.del&&confirm('Diesen Kreis mit allen Mitgliedern, Geschichten und Absätzen löschen? Das kann nicht rückgängig gemacht werden.'))act(async()=>{const{error}=await sb.from('circles').delete().eq('id',d.del);if(error)throw error})};
+  // deleting only archives: the circle disappears everywhere but stays in the database
+  if(d.del&&confirm('Diesen Kreis löschen? Er verschwindet für alle. Die Daten bleiben archiviert in der Datenbank.'))act(async()=>{const{error}=await sb.from('circles').update({archived_at:new Date().toISOString()}).eq('id',d.del);if(error)throw error})};
 loadSite().then(render).catch(x=>alert(x.message));
 }

@@ -33,6 +33,7 @@ alter table circles add column if not exists distribute_at time;                
 alter table circles add column if not exists tz text not null default 'UTC';    -- time zone distribute_at is meant in
 alter table circles add column if not exists schedule_since timestamptz not null default now();
 alter table circles add column if not exists last_distributed_at timestamptz;
+alter table circles add column if not exists archived_at timestamptz;           -- set when the admin deletes a circle: hidden everywhere, but kept
 -- The longest paragraph is set per circle (max_chars); this is only the upper bound.
 alter table contributions drop constraint if exists contributions_body_check;
 alter table contributions add constraint contributions_body_check check (char_length(body) between 1 and 5000);
@@ -83,7 +84,7 @@ drop function if exists do_new_day(uuid);
 create function do_new_day(p_circle uuid) returns int language plpgsql security definer set search_path=public as $$
 declare s record; m text; n int := 0; busy text[] := '{}';
 begin
-  perform 1 from circles where id=p_circle and not concluded for update;
+  perform 1 from circles where id=p_circle and not concluded and archived_at is null for update;
   if not found then return 0; end if;
   -- Yesterday's turns can no longer be edited. A turn nobody answered is skipped for good: the circle moves on without that paragraph.
   update assignments set missed = not done, active=false where circle_id=p_circle and active;
@@ -113,7 +114,7 @@ create or replace function tick() returns void language plpgsql security definer
 declare c record;
 begin
   if auth.uid() is null then raise exception 'Nicht erlaubt'; end if;
-  for c in select id from circles where not concluded and distribute_at is not null
+  for c in select id from circles where not concluded and archived_at is null and distribute_at is not null
       and last_slot(distribute_at, tz) > greatest(last_distributed_at, schedule_since) for update loop
     perform do_new_day(c.id);
   end loop;
@@ -125,7 +126,7 @@ begin
   if auth.uid() is null or u !~ '^[a-z0-9_]{2,24}$' then raise exception 'Nicht erlaubt'; end if;
   perform tick();
   select a.* into asg from assignments a join circles c on c.id=a.circle_id
-    where a.username=u and a.active and not c.concluded order by a.assigned_at desc limit 1;
+    where a.username=u and a.active and not c.concluded and c.archived_at is null order by a.assigned_at desc limit 1;
   if found then
     select * into cir from circles where id=asg.circle_id;
     t := json_build_object('story_id',asg.story_id,'done',asg.done,
@@ -134,21 +135,21 @@ begin
         from (select body, row_number() over(order by created_at) rn, count(*) over() cnt from contributions where story_id=asg.story_id and author<>u) r
         where r.rn <= cir.visible_first or r.rn > r.cnt - cir.visible_last));
   else
-    select c.* into cir from circles c join members mb on mb.circle_id=c.id where mb.username=u and not c.concluded order by mb.joined_at desc limit 1;
+    select c.* into cir from circles c join members mb on mb.circle_id=c.id where mb.username=u and not c.concluded and c.archived_at is null order by mb.joined_at desc limit 1;
   end if;
   return json_build_object('turn',t,
     'in_circle',cir.id is not null,
     'circle',case when cir.id is not null then json_build_object('name',cir.name,'description',cir.description,'texts',cir.texts,'max_chars',cir.max_chars,
       'next',case when cir.distribute_at is not null then last_slot(cir.distribute_at,cir.tz) + interval '1 day' end) end,
     'joinable',(select coalesce(json_agg(json_build_object('id',c.id,'name',c.name,'description',c.description) order by c.created_at),'[]'::json) from circles c
-      where not c.concluded and c.joinable and not exists(select 1 from members mb where mb.circle_id=c.id and mb.username=u)));
+      where not c.concluded and c.archived_at is null and c.joinable and not exists(select 1 from members mb where mb.circle_id=c.id and mb.username=u)));
 end $$;
 
 create or replace function join_circle(p_user text, p_circle uuid) returns void language plpgsql security definer set search_path=public as $$
 declare u text := lower(trim(p_user));
 begin
   if auth.uid() is null or u !~ '^[a-z0-9_]{2,24}$' then raise exception 'Nicht erlaubt'; end if;
-  insert into members(circle_id,username) select id,u from circles where id=p_circle and not concluded and joinable on conflict do nothing;
+  insert into members(circle_id,username) select id,u from circles where id=p_circle and not concluded and archived_at is null and joinable on conflict do nothing;
 end $$;
 
 create or replace function submit_turn(p_user text, p_body text) returns void language plpgsql security definer set search_path=public as $$
@@ -157,7 +158,7 @@ begin
   if auth.uid() is null or u !~ '^[a-z0-9_]{2,24}$' then raise exception 'Nicht erlaubt'; end if;
   perform tick();
   select x.* into a from assignments x join circles c on c.id=x.circle_id
-    where x.username=u and not x.done and x.active and not c.concluded order by x.assigned_at desc limit 1 for update of x;
+    where x.username=u and not x.done and x.active and not c.concluded and c.archived_at is null order by x.assigned_at desc limit 1 for update of x;
   if not found then raise exception 'Du bist gerade nicht an der Reihe'; end if;
   select max_chars into mx from circles where id=a.circle_id;
   if char_length(b) not between 1 and mx then raise exception 'Ein Absatz braucht 1 bis % Zeichen', mx; end if;
@@ -174,7 +175,7 @@ begin
   if auth.uid() is null or u !~ '^[a-z0-9_]{2,24}$' then raise exception 'Nicht erlaubt'; end if;
   perform tick();
   select x.* into a from assignments x join circles c on c.id=x.circle_id
-    where x.username=u and x.done and x.active and not c.concluded order by x.assigned_at desc limit 1;
+    where x.username=u and x.done and x.active and not c.concluded and c.archived_at is null order by x.assigned_at desc limit 1;
   if not found then raise exception 'Es gibt nichts zu ändern'; end if;
   select max_chars into mx from circles where id=a.circle_id;
   if char_length(b) not between 1 and mx then raise exception 'Ein Absatz braucht 1 bis % Zeichen', mx; end if;
@@ -199,13 +200,13 @@ create or replace function circle_ready(p_circle uuid) returns boolean language 
       and not exists(select 1 from assignments a where a.story_id=s.id and a.username=m.username and a.missed)) $$;
 
 -- Concluded stories for everyone with the site password, without the authors.
-create or replace function finished_stories() returns json language sql stable security definer set search_path=public as $
+create or replace function finished_stories() returns json language sql stable security definer set search_path=public as $$
   select coalesce(json_agg(json_build_object('name',c.name,'stories',
       (select coalesce(json_agg(json_build_object('contributions',
           (select coalesce(json_agg(json_build_object('body',co.body,'created_at',co.created_at) order by co.created_at),'[]'::json)
            from contributions co where co.story_id=s.id)) order by s.created_at),'[]'::json)
        from stories s where s.circle_id=c.id)) order by c.created_at desc),'[]'::json)
-  from circles c where c.concluded and auth.uid() is not null $;
+  from circles c where c.concluded and c.archived_at is null and auth.uid() is not null $$;
 
 create or replace function conclude_circle(p_circle uuid) returns void language plpgsql security definer set search_path=public as $$
 begin
