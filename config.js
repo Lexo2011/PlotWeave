@@ -1,6 +1,7 @@
 window.CONFIG = {
-  APP_NAME: "Plot Weave",        // page title and heading
-  APP_DESCRIPTION: "Stories pass through a circle of writers, one paragraph at a time.", // text under the heading
+  // Name and description are only used until you save your own in the admin panel (Site settings).
+  APP_NAME: "Plot Weave",
+  APP_DESCRIPTION: "Stories pass through a circle of writers, one paragraph at a time.",
   ADMIN_USERNAME: "admin",       // typing this username opens the admin view
   ADMIN_EMAIL: "admin@example.com",   // the admin user in Supabase (also set in setup.sql)
   SHARED_EMAIL: "shared@example.com", // the site-password user in Supabase

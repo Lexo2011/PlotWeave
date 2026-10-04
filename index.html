@@ -4,31 +4,33 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Plot Weave</title>
+<!-- Colour of the day: the same hue for everyone on the same date, a different one tomorrow. -->
+<script>(()=>{const d=new Date();let x=Math.imul((d.getFullYear()*372+d.getMonth()*31+d.getDate())^0x9e3779b9,0x85ebca6b);x^=x>>>13;x=Math.imul(x,0xc2b2ae35);x^=x>>>16;document.documentElement.style.setProperty('--hue',(x>>>0)%360)})()</script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Literata:opsz,wght@7..72,400;7..72,600&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header>
   <div class="topbar"><span id="who"></span><button id="out" class="link" hidden>Sign out</button></div>
-  <h1 class="app-name">Plot Weave</h1>
-  <p id="tagline">Stories pass through a circle of writers, one paragraph at a time.</p>
+  <h1 data-t="app_name">Plot Weave</h1>
+  <p data-t="tagline">Stories pass through a circle of writers, one paragraph at a time.</p>
 </header>
 <main>
   <form id="gate" hidden>
-    <label for="sitepw">Site password</label>
+    <label for="sitepw" data-t="gate_label">Site password</label>
     <input id="sitepw" type="password" required autocomplete="current-password">
-    <button>Enter</button>
+    <button data-t="gate_button">Enter</button>
   </form>
   <form id="login" hidden>
-    <label for="id">Username</label>
+    <label for="id" data-t="login_label">Username</label>
     <input id="id" required pattern="[A-Za-z0-9_]{2,24}" title="2 to 24 letters, numbers or underscores" autocomplete="username">
     <div id="adminrow" hidden><label for="adminpw">Admin password</label><input id="adminpw" type="password" autocomplete="current-password"></div>
-    <button>Continue</button>
+    <button data-t="login_button">Continue</button>
   </form>
   <section id="app" hidden>
     <div id="prompt"></div>
     <form id="form" hidden>
-      <label for="text">Your paragraph</label>
+      <label for="text" id="textlabel">Your paragraph</label>
       <textarea id="text" maxlength="500" rows="5" required></textarea>
       <div class="row"><span></span><span id="count" class="note">0/500</span></div>
       <button id="send">Add to story</button>
@@ -36,16 +38,12 @@
   </section>
   <section id="admin" hidden>
     <h2>Admin</h2>
+    <details><summary>Site settings</summary><form id="site" class="fields"></form></details>
     <form id="newcircle" class="inline"><input id="cname" placeholder="New circle name" required maxlength="60"><button>Create circle</button></form>
-    <form id="vis" class="inline">
-      <span>Writers see the first</span><input id="vfirst" class="num" type="number" min="0" max="20" required>
-      <span>and last</span><input id="vlast" class="num" type="number" min="0" max="20" required>
-      <span>paragraphs of a story.</span><button>Save</button>
-    </form>
     <div id="circlelist"></div>
   </section>
   <section id="finished" hidden>
-    <h2>Concluded stories</h2>
+    <h2 data-t="finished_heading">Concluded stories</h2>
     <div id="done"></div>
   </section>
 </main>
