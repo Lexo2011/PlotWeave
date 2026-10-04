@@ -114,7 +114,7 @@ end $$;
 create or replace function tick() returns void language plpgsql security definer set search_path=public as $$
 declare c record;
 begin
-  if auth.uid() is null then raise exception 'Not allowed'; end if;
+  if auth.uid() is null then raise exception 'Nicht erlaubt'; end if;
   for c in select id from circles where not concluded and distribute_at is not null
       and last_slot(distribute_at, tz) > greatest(last_distributed_at, schedule_since) for update loop
     perform do_new_day(c.id);
@@ -124,7 +124,7 @@ end $$;
 create or replace function my_state(p_user text) returns json language plpgsql security definer set search_path=public as $$
 declare u text := lower(trim(p_user)); asg assignments; cir circles; t json;
 begin
-  if auth.uid() is null or u !~ '^[a-z0-9_]{2,24}$' then raise exception 'Not allowed'; end if;
+  if auth.uid() is null or u !~ '^[a-z0-9_]{2,24}$' then raise exception 'Nicht erlaubt'; end if;
   perform tick();
   select a.* into asg from assignments a join circles c on c.id=a.circle_id
     where a.username=u and a.active and not c.concluded order by a.assigned_at desc limit 1;
@@ -149,20 +149,20 @@ end $$;
 create or replace function join_circle(p_user text, p_circle uuid) returns void language plpgsql security definer set search_path=public as $$
 declare u text := lower(trim(p_user));
 begin
-  if auth.uid() is null or u !~ '^[a-z0-9_]{2,24}$' then raise exception 'Not allowed'; end if;
+  if auth.uid() is null or u !~ '^[a-z0-9_]{2,24}$' then raise exception 'Nicht erlaubt'; end if;
   insert into members(circle_id,username) select id,u from circles where id=p_circle and not concluded and joinable on conflict do nothing;
 end $$;
 
 create or replace function submit_turn(p_user text, p_body text) returns void language plpgsql security definer set search_path=public as $$
 declare u text := lower(trim(p_user)); b text := trim(p_body); a assignments; sid uuid; mx int;
 begin
-  if auth.uid() is null or u !~ '^[a-z0-9_]{2,24}$' then raise exception 'Not allowed'; end if;
+  if auth.uid() is null or u !~ '^[a-z0-9_]{2,24}$' then raise exception 'Nicht erlaubt'; end if;
   perform tick();
   select x.* into a from assignments x join circles c on c.id=x.circle_id
     where x.username=u and not x.done and x.active and not c.concluded order by x.assigned_at desc limit 1 for update of x;
-  if not found then raise exception 'No turn is waiting for you'; end if;
+  if not found then raise exception 'Du bist gerade nicht an der Reihe'; end if;
   select max_chars into mx from circles where id=a.circle_id;
-  if char_length(b) not between 1 and mx then raise exception 'A paragraph needs 1 to % characters', mx; end if;
+  if char_length(b) not between 1 and mx then raise exception 'Ein Absatz braucht 1 bis % Zeichen', mx; end if;
   sid := a.story_id;
   if sid is null then insert into stories(circle_id,starter) values (a.circle_id,u) returning id into sid; end if;
   insert into contributions(story_id,author,body) values (sid,u,b);
@@ -173,19 +173,19 @@ end $$;
 create or replace function edit_turn(p_user text, p_body text) returns void language plpgsql security definer set search_path=public as $$
 declare u text := lower(trim(p_user)); b text := trim(p_body); a assignments; mx int;
 begin
-  if auth.uid() is null or u !~ '^[a-z0-9_]{2,24}$' then raise exception 'Not allowed'; end if;
+  if auth.uid() is null or u !~ '^[a-z0-9_]{2,24}$' then raise exception 'Nicht erlaubt'; end if;
   perform tick();
   select x.* into a from assignments x join circles c on c.id=x.circle_id
     where x.username=u and x.done and x.active and not c.concluded order by x.assigned_at desc limit 1;
-  if not found then raise exception 'There is nothing to edit'; end if;
+  if not found then raise exception 'Es gibt nichts zu ändern'; end if;
   select max_chars into mx from circles where id=a.circle_id;
-  if char_length(b) not between 1 and mx then raise exception 'A paragraph needs 1 to % characters', mx; end if;
+  if char_length(b) not between 1 and mx then raise exception 'Ein Absatz braucht 1 bis % Zeichen', mx; end if;
   update contributions set body=b, edited_at=now(), edited_by=u where story_id=a.story_id and author=u;
 end $$;
 
 create or replace function run_new_day(p_circle uuid) returns int language plpgsql security definer set search_path=public as $$
 begin
-  if not is_admin() then raise exception 'Admin only'; end if;
+  if not is_admin() then raise exception 'Nur für Admins'; end if;
   return do_new_day(p_circle);
 end $$;
 
@@ -202,8 +202,8 @@ create or replace function circle_ready(p_circle uuid) returns boolean language 
 
 create or replace function conclude_circle(p_circle uuid) returns void language plpgsql security definer set search_path=public as $$
 begin
-  if not is_admin() then raise exception 'Admin only'; end if;
-  if not circle_ready(p_circle) then raise exception 'Some turns in this circle are still open'; end if;
+  if not is_admin() then raise exception 'Nur für Admins'; end if;
+  if not circle_ready(p_circle) then raise exception 'In diesem Kreis sind noch nicht alle an der Reihe gewesen'; end if;
   update circles set concluded=true where id=p_circle;
 end $$;
 

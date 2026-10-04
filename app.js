@@ -3,32 +3,34 @@ const ADMIN=(cfg.ADMIN_USERNAME||'admin').toLowerCase();
 const ADMIN_EMAIL=cfg.ADMIN_EMAIL||'admin@example.com',SHARED=cfg.SHARED_EMAIL||'shared@example.com';
 const TZ=Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const fmt=d=>d?new Date(d).toLocaleString([],{dateStyle:'medium',timeStyle:'short'}):'-';
+const fmt=d=>d?new Date(d).toLocaleString('de-DE',{dateStyle:'medium',timeStyle:'short'}):'-';
 
 // Texts the admin can change in the admin panel: [key, label in the admin form, default text].
 // Site-wide texts are stored in the settings table.
 const SITE=[
-  ['app_name','Site name',cfg.APP_NAME||'Plot Weave'],
-  ['tagline','Text under the site name',cfg.APP_DESCRIPTION||'Stories pass through a circle of writers, one paragraph at a time.'],
-  ['gate_label','Label of the site password field','Site password'],
-  ['gate_button','Button of the site password form','Enter'],
-  ['login_label','Label of the username field','Username'],
-  ['login_button','Button of the username form','Continue'],
-  ['join_prompt','Above the circles a writer can join','Join a circle to start writing:'],
-  ['no_circle','When no circle can be joined','No circle is open to join yet. Check back soon.'],
-  ['finished_heading','Heading of the concluded stories','Concluded stories'],
-  ['finished_empty','When no circle is concluded yet','No concluded circles yet.']];
+  ['app_name','Name der Seite',cfg.APP_NAME||'Plot Weave'],
+  ['tagline','Text unter dem Namen',cfg.APP_DESCRIPTION||'Geschichten wandern durch einen Kreis von Schreibenden – Absatz für Absatz.'],
+  ['gate_label','Beschriftung des Passwortfelds','Passwort'],
+  ['gate_button','Knopf unter dem Passwortfeld','Eintreten'],
+  ['login_label','Beschriftung des Namensfelds','Benutzername'],
+  ['login_button','Knopf unter dem Namensfeld','Weiter'],
+  ['signed_in','Anzeige oben rechts ({name} wird ersetzt)','Angemeldet als {name}'],
+  ['sign_out','Knopf zum Abmelden','Abmelden'],
+  ['join_prompt','Über den Kreisen, denen man beitreten kann','Tritt einem Kreis bei, um mitzuschreiben:'],
+  ['no_circle','Wenn kein Kreis offen ist','Zurzeit ist kein Kreis offen. Schau bald wieder vorbei.'],
+  ['finished_heading','Überschrift der abgeschlossenen Geschichten','Abgeschlossene Geschichten'],
+  ['finished_empty','Wenn noch kein Kreis abgeschlossen ist','Noch keine abgeschlossenen Kreise.']];
 // Texts a writer sees inside a circle are stored on that circle (circles.texts).
 const CIRCLE=[
-  ['start','When asked to start a story','Start a new story. Write its first paragraph.'],
-  ['continue','When asked to continue a story','Continue this story:'],
-  ['waiting','When no turn is waiting','No turn is waiting for you. A new one arrives when the next day starts.'],
-  ['submitted','After writing','Your paragraph is in. You can change it until the next day starts.'],
-  ['so_far','Above the story, after writing','The story so far:'],
-  ['next','Next hand-out ({time} is replaced; only shown with a daily time)','The next turns are handed out on {time}.'],
-  ['label','Label of the text field','Your paragraph'],
-  ['submit','Button to add a paragraph','Add to story'],
-  ['save','Button to change a paragraph','Save changes']];
+  ['start','Wenn jemand eine Geschichte beginnen soll','Beginne eine neue Geschichte. Schreibe ihren ersten Absatz.'],
+  ['continue','Wenn jemand eine Geschichte fortsetzen soll','Setze diese Geschichte fort:'],
+  ['waiting','Wenn jemand gerade nicht an der Reihe ist','Gerade bist du nicht an der Reihe. Die nächste Geschichte kommt, wenn der nächste Tag beginnt.'],
+  ['submitted','Nach dem Schreiben','Dein Absatz ist gespeichert. Du kannst ihn ändern, bis der nächste Tag beginnt.'],
+  ['so_far','Über der Geschichte, nach dem Schreiben','Die Geschichte bisher:'],
+  ['next','Nächste Weitergabe ({time} wird ersetzt; nur mit täglicher Uhrzeit)','Die Geschichten werden am {time} weitergegeben.'],
+  ['label','Beschriftung des Textfelds','Dein Absatz'],
+  ['submit','Knopf zum Hinzufügen','Zur Geschichte hinzufügen'],
+  ['save','Knopf zum Ändern','Änderungen speichern']];
 let site={};try{site=JSON.parse(localStorage.getItem('site'))||{}}catch{}
 const txt=k=>site[k]||SITE.find(x=>x[0]===k)[2];
 const ctxt=(c,k)=>(c&&c.texts&&c.texts[k])||CIRCLE.find(x=>x[0]===k)[2];
@@ -37,7 +39,7 @@ const field=([k,l,d],v,p='')=>`<label>${l}<input name="${p+k}" value="${esc(v||'
 applySite();
 
 if(!(cfg.SUPABASE_URL&&cfg.SUPABASE_ANON_KEY&&window.supabase)){
-  document.querySelector('main').innerHTML='<p>Add your Supabase URL and anon key to config.js.</p>';
+  document.querySelector('main').innerHTML='<p>Trage die Supabase-URL und den anon key in config.js ein.</p>';
 }else{
 const mk=o=>supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY,o);
 // Two separate sessions: the site password (siteC) and the admin login (adminC), so admin sign-out keeps the site unlocked.
@@ -61,7 +63,7 @@ async function render(){
   if(me===ADMIN&&!isAdmin)me=null;
   document.body.classList.toggle('wide',isAdmin);
   show('gate',!ses);show('login',!!ses&&!me);show('app',!!me&&!isAdmin);show('admin',isAdmin);show('finished',!!ses);
-  $('#who').textContent=me?'Signed in as '+me:'';show('out',!!me);
+  $('#who').textContent=me?txt('signed_in').replace('{name}',me):'';show('out',!!me);
   if(me&&!isAdmin)await renderUser();
   if(isAdmin)await renderAdmin();
   if(ses)await renderFinished();
@@ -90,7 +92,7 @@ async function renderAdmin(){
     sb.from('circles').select('*,members(username),stories(id,starter,created_at,contributions(id,author,body,created_at,edited_at,edited_by))').order('created_at',{ascending:false}),
     sb.from('assignments').select('story_id,circle_id,username,done,active,missed,seen,assigned_at')]);
   if(a.error)throw a.error;if(b.error)throw b.error;
-  $('#site').innerHTML=SITE.map(f=>field(f,site[f[0]])).join('')+'<p class="note">An empty field uses the text shown in grey.</p><button>Save site settings</button>';
+  $('#site').innerHTML=SITE.map(f=>field(f,site[f[0]])).join('')+'<p class="note">Ein leeres Feld verwendet den grau angezeigten Text.</p><button>Seiteneinstellungen speichern</button>';
   $('#circlelist').innerHTML=a.data.map(c=>{
     const asg=b.data.filter(x=>x.circle_id===c.id),mem=c.members.map(m=>m.username),pend=asg.filter(x=>x.active&&!x.done);
     const missed=(u,sid)=>asg.some(x=>x.missed&&x.username===u&&x.story_id===sid);
@@ -100,29 +102,31 @@ async function renderAdmin(){
       const cons=s.contributions.sort(byTime),p=pend.find(x=>x.story_id===s.id),o=openRows.has(s.id);
       const ev=cons.map(x=>x.edited_at&&T(x.edited_at)>T(x.created_at)?{t:x.edited_at,by:x.edited_by||x.author}:{t:x.created_at,by:x.author}).sort((x,y)=>T(x.t)-T(y.t)).at(-1)||{t:s.created_at,by:s.starter};
       const skip=mem.filter(u=>missed(u,s.id)),left=mem.filter(u=>!cons.some(x=>x.author===u)&&!skip.includes(u));
-      return `<tr><td>${esc(s.starter)}</td><td>${fmt(s.created_at)}</td><td>${cons.length}</td><td>${p?esc(p.username):'-'}</td><td>${left.map(esc).join(', ')||'nobody'}</td><td>${skip.map(esc).join(', ')||'-'}</td><td>${esc(ev.by)}</td><td>${fmt(ev.t)}</td><td><button class="link" data-toggle="${s.id}">${o?'Close':'Edit'}</button></td></tr>`
-        +`<tr class="editrow" id="e-${s.id}"${o?'':' hidden'}><td colspan="9">`+cons.map(x=>`<div class="edit"><small>${esc(x.author)}</small><textarea maxlength="${c.max_chars}" data-id="${x.id}">${esc(x.body)}</textarea><button data-save="${x.id}">Save</button></div>`).join('')+'</td></tr>';
+      // whoever has the turn right now comes first, in bold
+      const now=p&&p.username,todo=left.sort((x,y)=>(y===now)-(x===now)).map(u=>u===now?`<strong>${esc(u)}</strong> (ist dran)`:esc(u)).join(', ')||'niemand';
+      return `<tr><td>${esc(s.starter)}</td><td>${fmt(s.created_at)}</td><td>${cons.length}</td><td>${todo}</td><td>${skip.map(esc).join(', ')||'-'}</td><td>${esc(ev.by)}</td><td>${fmt(ev.t)}</td><td><button class="link" data-toggle="${s.id}">${o?'Schließen':'Bearbeiten'}</button></td></tr>`
+        +`<tr class="editrow" id="e-${s.id}"${o?'':' hidden'}><td colspan="8">`+cons.map(x=>`<div class="edit"><small><strong>${esc(x.author)}</strong> · geschrieben am ${fmt(x.created_at)}${x.edited_at?` · zuletzt geändert von ${esc(x.edited_by||x.author)} am ${fmt(x.edited_at)}`:''}</small><textarea maxlength="${c.max_chars}" data-id="${x.id}">${esc(x.body)}</textarea><button data-save="${x.id}">Speichern</button></div>`).join('')+'</td></tr>';
     }).join('');
     const starting=pend.filter(x=>!x.story_id).map(x=>esc(x.username));
     const news=asg.filter(x=>x.missed&&!x.seen).sort((x,y)=>T(x.assigned_at)-T(y.assigned_at));
-    const notice=news.length?'<div class="notice"><strong>Missed turns</strong><ul>'+news.map(x=>{const s=c.stories.find(s=>s.id===x.story_id);
-      return `<li>${esc(x.username)} did not ${s?'continue the story started by '+esc(s.starter):'start a story'} (turn handed out ${fmt(x.assigned_at)}). The circle moved on without it.</li>`}).join('')+`</ul><button class="link" data-seen="${c.id}">Mark as seen</button></div>`:'';
-    const when=c.distribute_at?`daily at ${c.distribute_at.slice(0,5)} (${esc(c.tz)})`:'only when you press "Start next day"';
-    const form=`<details data-cfg="${c.id}"${openCfg.has(c.id)?' open':''}><summary>Circle settings</summary><form class="fields" data-circle="${c.id}">`
+    const notice=news.length?'<div class="notice"><strong>Nicht geschrieben</strong><ul>'+news.map(x=>{const s=c.stories.find(s=>s.id===x.story_id);
+      return `<li>${esc(x.username)} hat ${s?'die Geschichte von '+esc(s.starter)+' nicht fortgesetzt':'keine Geschichte begonnen'} (an der Reihe seit ${fmt(x.assigned_at)}). Der Kreis ist ohne diesen Absatz weitergegangen.</li>`}).join('')+`</ul><button class="link" data-seen="${c.id}">Als gesehen markieren</button></div>`:'';
+    const when=c.distribute_at?`täglich um ${c.distribute_at.slice(0,5)} Uhr (${esc(c.tz)})`:'nur, wenn du „Nächsten Tag starten“ drückst,';
+    const form=`<details data-cfg="${c.id}"${openCfg.has(c.id)?' open':''}><summary>Kreiseinstellungen</summary><form class="fields" data-circle="${c.id}">`
       +`<label>Name<input name="name" required maxlength="60" value="${esc(c.name)}"></label>`
-      +`<label>Description (shown to writers)<textarea name="description" rows="2" maxlength="500">${esc(c.description)}</textarea></label>`
-      +`<label>Hand out turns daily at (empty: only by hand)<input name="distribute_at" type="time" value="${c.distribute_at?c.distribute_at.slice(0,5):''}"></label>`
-      +`<label class="check"><input name="joinable" type="checkbox"${c.joinable?' checked':''}> New writers can join</label>`
-      +`<label>Paragraphs a writer sees from the start of a story<input name="visible_first" type="number" min="0" max="50" required value="${c.visible_first}"></label>`
-      +`<label>Paragraphs a writer sees from the end of a story<input name="visible_last" type="number" min="0" max="50" required value="${c.visible_last}"></label>`
-      +`<label>Longest paragraph (characters)<input name="max_chars" type="number" min="50" max="5000" required value="${c.max_chars}"></label>`
-      +'<h4>Texts writers see in this circle</h4>'+CIRCLE.map(f=>field(f,c.texts&&c.texts[f[0]],'t_')).join('')
-      +`<p class="note">An empty text field uses the text shown in grey. The daily time is in your time zone (${esc(TZ)}).</p><button>Save circle settings</button></form></details>`;
-    return `<article><h3>${esc(c.name)}${c.concluded?' (concluded)':''}</h3>${notice}<p class="note">Members: ${mem.map(esc).join(', ')||'none yet'}${starting.length?'. Asked to start a story: '+starting.join(', '):''}</p>`
-      +(c.concluded?'':`<p class="note">Turns are handed out ${when}. Last time: ${fmt(c.last_distributed_at)}.</p>`)
-      +(rows?`<div class="tablewrap"><table><tr><th>Created by</th><th>Created</th><th>Paragraphs</th><th>Turn now</th><th>Still to write</th><th>Missed</th><th>Last edited by</th><th>Last updated</th><th></th></tr>${rows}</table></div>`:'<p class="note">No stories yet.</p>')
-      +'<p>'+(!c.concluded?`<button data-newday="${c.id}">Start next day</button> `:'')+(!c.concluded&&full?`<button data-conclude="${c.id}">Conclude circle</button> `:'')+`<button class="link" data-del="${c.id}">Delete circle</button></p>${form}</article>`;
-  }).join('')||'<p>No circles yet. Create one above.</p>';
+      +`<label>Beschreibung (für Schreibende sichtbar)<textarea name="description" rows="2" maxlength="500">${esc(c.description)}</textarea></label>`
+      +`<label>Geschichten täglich weitergeben um (leer: nur von Hand)<input name="distribute_at" type="time" value="${c.distribute_at?c.distribute_at.slice(0,5):''}"></label>`
+      +`<label class="check"><input name="joinable" type="checkbox"${c.joinable?' checked':''}> Neue Schreibende können beitreten</label>`
+      +`<label>Sichtbare Absätze vom Anfang einer Geschichte<input name="visible_first" type="number" min="0" max="50" required value="${c.visible_first}"></label>`
+      +`<label>Sichtbare Absätze vom Ende einer Geschichte<input name="visible_last" type="number" min="0" max="50" required value="${c.visible_last}"></label>`
+      +`<label>Maximale Länge eines Absatzes (Zeichen)<input name="max_chars" type="number" min="50" max="5000" required value="${c.max_chars}"></label>`
+      +'<h4>Texte, die Schreibende in diesem Kreis sehen</h4>'+CIRCLE.map(f=>field(f,c.texts&&c.texts[f[0]],'t_')).join('')
+      +`<p class="note">Ein leeres Textfeld verwendet den grau angezeigten Text. Die Uhrzeit gilt in deiner Zeitzone (${esc(TZ)}).</p><button>Kreiseinstellungen speichern</button></form></details>`;
+    return `<article><h3>${esc(c.name)}${c.concluded?' (abgeschlossen)':''}</h3>${notice}<p class="note">Mitglieder: ${mem.map(esc).join(', ')||'noch keine'}${starting.length?'. Sollen eine Geschichte beginnen: '+starting.join(', '):''}</p>`
+      +(c.concluded?'':`<p class="note">Die Geschichten werden ${when} weitergegeben. Zuletzt: ${fmt(c.last_distributed_at)}.</p>`)
+      +(rows?`<div class="tablewrap"><table><tr><th>Begonnen von</th><th>Begonnen am</th><th>Absätze</th><th>Noch zu schreiben</th><th>Verpasst</th><th>Zuletzt geändert von</th><th>Zuletzt geändert am</th><th></th></tr>${rows}</table></div>`:'<p class="note">Noch keine Geschichten.</p>')
+      +'<p>'+(!c.concluded?`<button data-newday="${c.id}">Nächsten Tag starten</button> `:'')+(!c.concluded&&full?`<button data-conclude="${c.id}">Kreis abschließen</button> `:'')+`<button class="link" data-del="${c.id}">Kreis löschen</button></p>${form}</article>`;
+  }).join('')||'<p>Noch keine Kreise. Erstelle oben einen.</p>';
 }
 
 async function renderFinished(){
@@ -132,12 +136,12 @@ async function renderFinished(){
 
 $('#gate').onsubmit=async e=>{e.preventDefault();
   const{error}=await siteC.auth.signInWithPassword({email:SHARED,password:$('#sitepw').value});
-  if(error)return alert('Wrong password.');$('#sitepw').value='';render()};
+  if(error)return alert('Falsches Passwort.');$('#sitepw').value='';render()};
 $('#id').oninput=e=>{const on=e.target.value.trim().toLowerCase()===ADMIN;show('adminrow',on);$('#adminpw').required=on};
 $('#login').onsubmit=async e=>{e.preventDefault();const n=$('#id').value.trim().toLowerCase();
   if(n===ADMIN){
     const{error}=await adminC.auth.signInWithPassword({email:ADMIN_EMAIL,password:$('#adminpw').value});
-    if(error)return alert('Wrong admin password.');$('#adminpw').value='';
+    if(error)return alert('Falsches Admin-Passwort.');$('#adminpw').value='';
   }else localStorage.setItem('author',n);
   render()};
 $('#out').onclick=async()=>{localStorage.removeItem('author');if(isAdmin)await adminC.auth.signOut();render()};
@@ -158,11 +162,11 @@ $('#admin').addEventListener('submit',e=>{const id=e.target.dataset.circle;if(!i
     visible_first:+v.visible_first,visible_last:+v.visible_last,max_chars:+v.max_chars,texts}).eq('id',id);if(error)throw error})});
 $('#admin').addEventListener('toggle',e=>{const id=e.target.dataset.cfg;if(id)e.target.open?openCfg.add(id):openCfg.delete(id)},true);
 $('#admin').onclick=e=>{const d=e.target.dataset;
-  if(d.toggle){const r=$('#e-'+d.toggle);r.hidden=!r.hidden;r.hidden?openRows.delete(d.toggle):openRows.add(d.toggle);e.target.textContent=r.hidden?'Edit':'Close'}
+  if(d.toggle){const r=$('#e-'+d.toggle);r.hidden=!r.hidden;r.hidden?openRows.delete(d.toggle):openRows.add(d.toggle);e.target.textContent=r.hidden?'Bearbeiten':'Schließen'}
   if(d.save)act(async()=>{const{error}=await sb.from('contributions').update({body:document.querySelector(`textarea[data-id="${d.save}"]`).value.trim(),edited_at:new Date().toISOString(),edited_by:ADMIN}).eq('id',d.save);if(error)throw error});
   if(d.seen)act(async()=>{const{error}=await sb.from('assignments').update({seen:true}).eq('circle_id',d.seen).eq('missed',true);if(error)throw error});
   if(d.conclude)act(()=>rpc('conclude_circle',{p_circle:d.conclude}));
-  if(d.newday&&confirm('Start the next day for this circle? Turns nobody has answered yet are skipped for good, and nobody can edit yesterday\'s paragraph anymore.'))act(async()=>{alert(await rpc('run_new_day',{p_circle:d.newday})+' turns handed out.')});
-  if(d.del&&confirm('Delete this circle with all its members, stories and paragraphs? This cannot be undone.'))act(async()=>{const{error}=await sb.from('circles').delete().eq('id',d.del);if(error)throw error})};
+  if(d.newday&&confirm('Den nächsten Tag für diesen Kreis starten? Wer bis jetzt nicht geschrieben hat, wird übersprungen, und der Absatz von gestern kann nicht mehr geändert werden.'))act(async()=>{alert(await rpc('run_new_day',{p_circle:d.newday})+' Schreibende sind jetzt an der Reihe.')});
+  if(d.del&&confirm('Diesen Kreis mit allen Mitgliedern, Geschichten und Absätzen löschen? Das kann nicht rückgängig gemacht werden.'))act(async()=>{const{error}=await sb.from('circles').delete().eq('id',d.del);if(error)throw error})};
 loadSite().then(render).catch(x=>alert(x.message));
 }

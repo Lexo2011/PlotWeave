@@ -5,11 +5,13 @@
 html{min-height:100%;background:var(--paper);background:radial-gradient(70rem 45rem at 100% -10%,oklch(.93 .06 calc(var(--hue) - 45)),transparent 70%),linear-gradient(165deg,oklch(.965 .025 var(--hue)),oklch(.9 .055 calc(var(--hue) + 50)));background-attachment:fixed}
 body{margin:0 0 4rem;color:var(--ink);font:1.05rem/1.7 Literata,Georgia,serif}
 header,main{max-width:40rem;margin:0 auto;padding:0 1.25rem}
-header{position:relative;padding-top:3rem}
+header{position:relative;padding-top:4.5rem;overflow:hidden}
 body.wide header,body.wide main{max-width:72rem}
 .topbar{position:absolute;top:1rem;right:1.25rem;display:flex;gap:.6rem;align-items:center;font-size:.9rem}
 h1,h2,h3,h4{font-family:Fraunces,Georgia,serif;font-weight:600;line-height:1.1}
-h1{font-size:clamp(2.4rem,8vw,3.6rem);margin:0 0 .5rem}
+h1{font-size:clamp(2.4rem,8vw,3.6rem);margin:0 0 .5rem;display:inline-block;position:relative;isolation:isolate}
+/* the hand sits behind the end of the title, its pencil tip on the last letter */
+h1::before{content:"";position:absolute;z-index:-1;left:calc(100% - .42em);bottom:.12em;height:1.9em;aspect-ratio:720/537;background:url(write.png) no-repeat center/contain}
 h1::after{content:"";display:block;width:4.5rem;height:5px;margin-top:.9rem;border-radius:3px;background:linear-gradient(90deg,var(--mark),transparent)}
 h2{font-size:1.6rem;margin:0 0 1rem}
 h3{margin:1.5rem 0 .3rem}

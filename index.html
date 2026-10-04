@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,39 +11,39 @@
 </head>
 <body>
 <header>
-  <div class="topbar"><span id="who"></span><button id="out" class="link" hidden>Sign out</button></div>
+  <div class="topbar"><span id="who"></span><button id="out" class="link" data-t="sign_out" hidden>Abmelden</button></div>
   <h1 data-t="app_name">Plot Weave</h1>
-  <p data-t="tagline">Stories pass through a circle of writers, one paragraph at a time.</p>
+  <p data-t="tagline">Geschichten wandern durch einen Kreis von Schreibenden – Absatz für Absatz.</p>
 </header>
 <main>
   <form id="gate" hidden>
-    <label for="sitepw" data-t="gate_label">Site password</label>
+    <label for="sitepw" data-t="gate_label">Passwort</label>
     <input id="sitepw" type="password" required autocomplete="current-password">
-    <button data-t="gate_button">Enter</button>
+    <button data-t="gate_button">Eintreten</button>
   </form>
   <form id="login" hidden>
-    <label for="id" data-t="login_label">Username</label>
-    <input id="id" required pattern="[A-Za-z0-9_]{2,24}" title="2 to 24 letters, numbers or underscores" autocomplete="username">
-    <div id="adminrow" hidden><label for="adminpw">Admin password</label><input id="adminpw" type="password" autocomplete="current-password"></div>
-    <button data-t="login_button">Continue</button>
+    <label for="id" data-t="login_label">Benutzername</label>
+    <input id="id" required pattern="[A-Za-z0-9_]{2,24}" title="2 bis 24 Buchstaben, Ziffern oder Unterstriche" autocomplete="username">
+    <div id="adminrow" hidden><label for="adminpw">Admin-Passwort</label><input id="adminpw" type="password" autocomplete="current-password"></div>
+    <button data-t="login_button">Weiter</button>
   </form>
   <section id="app" hidden>
     <div id="prompt"></div>
     <form id="form" hidden>
-      <label for="text" id="textlabel">Your paragraph</label>
+      <label for="text" id="textlabel">Dein Absatz</label>
       <textarea id="text" maxlength="500" rows="5" required></textarea>
       <div class="row"><span></span><span id="count" class="note">0/500</span></div>
-      <button id="send">Add to story</button>
+      <button id="send">Zur Geschichte hinzufügen</button>
     </form>
   </section>
   <section id="admin" hidden>
-    <h2>Admin</h2>
-    <details><summary>Site settings</summary><form id="site" class="fields"></form></details>
-    <form id="newcircle" class="inline"><input id="cname" placeholder="New circle name" required maxlength="60"><button>Create circle</button></form>
+    <h2>Verwaltung</h2>
+    <details><summary>Seiteneinstellungen</summary><form id="site" class="fields"></form></details>
+    <form id="newcircle" class="inline"><input id="cname" placeholder="Name des neuen Kreises" required maxlength="60"><button>Kreis erstellen</button></form>
     <div id="circlelist"></div>
   </section>
   <section id="finished" hidden>
-    <h2 data-t="finished_heading">Concluded stories</h2>
+    <h2 data-t="finished_heading">Abgeschlossene Geschichten</h2>
     <div id="done"></div>
   </section>
 </main>
