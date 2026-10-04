@@ -27,7 +27,7 @@ Only what is needed to connect and log in stays in `config.js`:
 - Turns are handed out per circle when a new day starts: members who have not been asked to start a story are asked to start one; every other story goes to a random member of that circle who has not had a turn in it yet (one turn per member per day).
 - A new day starts when the admin presses "Start next day", or daily at the time set in the circle settings. There is no background job: a circle with a daily time starts its day at the first visit (by a writer or the admin) after that time.
 - A writer who has not written when the next day starts misses that turn for good. The circle moves on without the paragraph, and the admin sees a "Missed turns" notice on that circle.
-- A circle is finished when no turn is open and every member has written or missed every turn. The admin can then conclude it and its stories become readable for everyone.
+- A circle is finished when no turn is open and every member has written or missed every turn. The admin can then conclude it and its stories become readable for everyone, without the names of who wrote what (only the admin sees those).
 - The admin can edit any paragraph from the dashboard.
 - A writer can change their paragraph until the next day starts.
 - How much of a story a writer sees (first N and last N paragraphs) is enforced by the database.

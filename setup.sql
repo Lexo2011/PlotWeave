@@ -44,13 +44,11 @@ do $$ declare t text; begin
     execute format('create policy admin_all on %I for all to authenticated using (is_admin()) with check (is_admin())', t);
   end loop;
 end $$;
--- Everyone with the site password can read concluded circles. All other access goes through the functions below.
+-- Only the admin reads the tables directly. All other access goes through the functions below
+-- (concluded stories used to be readable directly, which also exposed who wrote what).
 drop policy if exists read_concluded on circles;
 drop policy if exists read_concluded on stories;
 drop policy if exists read_concluded on contributions;
-create policy read_concluded on circles for select to authenticated using (concluded);
-create policy read_concluded on stories for select to authenticated using (exists(select 1 from circles c where c.id=circle_id and c.concluded));
-create policy read_concluded on contributions for select to authenticated using (exists(select 1 from stories s join circles c on c.id=s.circle_id where s.id=story_id and c.concluded));
 -- The site texts are shown before anyone has entered the site password.
 drop policy if exists read_all on settings;
 create policy read_all on settings for select to anon, authenticated using (true);
@@ -200,6 +198,15 @@ create or replace function circle_ready(p_circle uuid) returns boolean language 
       and not exists(select 1 from contributions c where c.story_id=s.id and c.author=m.username)
       and not exists(select 1 from assignments a where a.story_id=s.id and a.username=m.username and a.missed)) $$;
 
+-- Concluded stories for everyone with the site password, without the authors.
+create or replace function finished_stories() returns json language sql stable security definer set search_path=public as $
+  select coalesce(json_agg(json_build_object('name',c.name,'stories',
+      (select coalesce(json_agg(json_build_object('contributions',
+          (select coalesce(json_agg(json_build_object('body',co.body,'created_at',co.created_at) order by co.created_at),'[]'::json)
+           from contributions co where co.story_id=s.id)) order by s.created_at),'[]'::json)
+       from stories s where s.circle_id=c.id)) order by c.created_at desc),'[]'::json)
+  from circles c where c.concluded and auth.uid() is not null $;
+
 create or replace function conclude_circle(p_circle uuid) returns void language plpgsql security definer set search_path=public as $$
 begin
   if not is_admin() then raise exception 'Nur für Admins'; end if;
@@ -208,5 +215,5 @@ begin
 end $$;
 
 revoke execute on function do_new_day(uuid), last_slot(time,text), circle_changed() from public, anon, authenticated;
-revoke execute on function is_admin(), tick(), my_state(text), join_circle(text,uuid), submit_turn(text,text), edit_turn(text,text), run_new_day(uuid), circle_ready(uuid), conclude_circle(uuid) from public, anon;
-grant execute on function is_admin(), tick(), my_state(text), join_circle(text,uuid), submit_turn(text,text), edit_turn(text,text), run_new_day(uuid), circle_ready(uuid), conclude_circle(uuid) to authenticated;
+revoke execute on function is_admin(), tick(), my_state(text), join_circle(text,uuid), submit_turn(text,text), edit_turn(text,text), run_new_day(uuid), circle_ready(uuid), conclude_circle(uuid), finished_stories() from public, anon;
+grant execute on function is_admin(), tick(), my_state(text), join_circle(text,uuid), submit_turn(text,text), edit_turn(text,text), run_new_day(uuid), circle_ready(uuid), conclude_circle(uuid), finished_stories() to authenticated;

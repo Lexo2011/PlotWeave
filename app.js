@@ -130,8 +130,9 @@ async function renderAdmin(){
 }
 
 async function renderFinished(){
-  const{data}=await sb.from('circles').select('name,stories(contributions(author,body,created_at))').eq('concluded',true).order('created_at',{ascending:false});
-  $('#done').innerHTML=(data||[]).map(c=>`<h3>${esc(c.name)}</h3>`+c.stories.map(s=>'<article>'+s.contributions.sort(byTime).map(x=>`<p>${esc(x.body)} <small>${esc(x.author)}</small></p>`).join('')+'</article>').join('')).join('')||`<p>${esc(txt('finished_empty'))}</p>`;
+  // only the admin reads the tables (with authors); everyone else gets the stories without names
+  const data=isAdmin?(await sb.from('circles').select('name,stories(contributions(author,body,created_at))').eq('concluded',true).order('created_at',{ascending:false})).data:await rpc('finished_stories');
+  $('#done').innerHTML=(data||[]).map(c=>`<h3>${esc(c.name)}</h3>`+c.stories.map(s=>'<article>'+s.contributions.sort(byTime).map(x=>`<p>${esc(x.body)}${x.author?` <small>${esc(x.author)}</small>`:''}</p>`).join('')+'</article>').join('')).join('')||`<p>${esc(txt('finished_empty'))}</p>`;
 }
 
 $('#gate').onsubmit=async e=>{e.preventDefault();
