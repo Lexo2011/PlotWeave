@@ -23,7 +23,9 @@ Only what is needed to connect and log in stays in `config.js`:
 
 ## How it works
 - Visitors enter the site password once per device, then just a username. Typing the admin username asks for the admin password.
-- The admin creates story circles. Users join a circle from their page.
+- The admin creates story circles. Users join a circle from their page and can write the first paragraph of their own story right away.
+- Once a circle has begun (its first day has been started), joining needs the admin's approval: the request shows up on that circle in the admin panel.
+- "Kopieren" in a story's row copies the story so far to the clipboard.
 - Turns are handed out per circle when a new day starts: members who have not been asked to start a story are asked to start one; every other story goes to a random member of that circle who has not had a turn in it yet (one turn per member per day).
 - A new day starts when the admin presses "Start next day", or daily at the time set in the circle settings. There is no background job: a circle with a daily time starts its day at the first visit (by a writer or the admin) after that time.
 - A writer who has not written when the next day starts misses that turn for good. The circle moves on without the paragraph, and the admin sees a "Missed turns" notice on that circle.
