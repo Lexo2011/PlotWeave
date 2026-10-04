@@ -9,10 +9,10 @@ header{position:relative;padding-top:4.5rem;overflow:hidden}
 body.wide header,body.wide main{max-width:72rem}
 .topbar{position:absolute;top:1rem;right:1.25rem;display:flex;gap:.6rem;align-items:center;font-size:.9rem}
 h1,h2,h3,h4{font-family:Fraunces,Georgia,serif;font-weight:600;line-height:1.1}
-h1{font-size:clamp(2.4rem,8vw,3.6rem);margin:0 0 .5rem;padding-bottom:.9rem;position:relative;isolation:isolate;background:linear-gradient(90deg,var(--mark),transparent) no-repeat left bottom/4.5rem 5px}
-/* The hand sits behind the end of the title, its pencil tip on the last letter. It is part of the text line, so it follows
-   the last word when a long title wraps; the negative margins keep it from taking up room in the line. */
-h1::after{content:"";display:inline-block;position:relative;z-index:-1;width:2.55em;height:1.9em;margin:-1.9em -2.55em 0 -.42em;top:.33em;background:url(write.png) no-repeat center/contain}
+h1{font-size:clamp(2.4rem,8vw,3.6rem);margin:0 0 .5rem;padding:0 1.9em .9rem 0;position:relative;isolation:isolate;background:linear-gradient(90deg,var(--mark),transparent) no-repeat left bottom/4.5rem 5px}
+/* The hand is anchored to the right of the title and stands on its last line, however many lines the title has.
+   The title keeps some room free for it; where they still meet, the hand is behind the text. */
+h1::after{content:"";position:absolute;z-index:-1;right:0;bottom:.9rem;height:1.5em;aspect-ratio:720/537;background:url(write.png) no-repeat center/contain}
 h2{font-size:1.6rem;margin:0 0 1rem}
 h3{margin:1.5rem 0 .3rem}
 h4{margin:1rem 0 0}
