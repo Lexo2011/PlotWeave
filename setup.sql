@@ -33,6 +33,11 @@ alter table circles add column if not exists distribute_at time;                
 alter table circles add column if not exists tz text not null default 'UTC';    -- time zone distribute_at is meant in
 alter table circles add column if not exists schedule_since timestamptz not null default now();
 alter table circles add column if not exists last_distributed_at timestamptz;
+-- Publishing happens per story, from the admin panel.
+alter table stories add column if not exists title text;
+alter table stories add column if not exists image text;                        -- picture as a data: URL, shrunk in the browser
+alter table stories add column if not exists thumb text;                        -- small version of it for the list
+alter table stories add column if not exists published_at timestamptz;          -- null = not published
 alter table circles add column if not exists archived_at timestamptz;           -- set when the admin deletes a circle: hidden everywhere, but kept
 -- The longest paragraph is set per circle (max_chars); this is only the upper bound.
 alter table contributions drop constraint if exists contributions_body_check;
@@ -199,14 +204,18 @@ create or replace function circle_ready(p_circle uuid) returns boolean language 
       and not exists(select 1 from contributions c where c.story_id=s.id and c.author=m.username)
       and not exists(select 1 from assignments a where a.story_id=s.id and a.username=m.username and a.missed)) $$;
 
--- Concluded stories for everyone with the site password, without the authors.
-create or replace function finished_stories() returns json language sql stable security definer set search_path=public as $$
-  select coalesce(json_agg(json_build_object('name',c.name,'stories',
-      (select coalesce(json_agg(json_build_object('contributions',
-          (select coalesce(json_agg(json_build_object('body',co.body,'created_at',co.created_at) order by co.created_at),'[]'::json)
-           from contributions co where co.story_id=s.id)) order by s.created_at),'[]'::json)
-       from stories s where s.circle_id=c.id)) order by c.created_at desc),'[]'::json)
-  from circles c where c.concluded and c.archived_at is null and auth.uid() is not null $$;
+-- Published stories for everyone with the site password: the list, and one story to read. No names of who wrote what.
+drop function if exists finished_stories();
+create or replace function published_stories() returns json language sql stable security definer set search_path=public as $$
+  select coalesce(json_agg(json_build_object('id',s.id,'title',s.title,'thumb',s.thumb) order by s.published_at desc),'[]'::json)
+  from stories s join circles c on c.id=s.circle_id
+  where s.published_at is not null and c.concluded and c.archived_at is null and auth.uid() is not null $$;
+
+create or replace function published_story(p_id uuid) returns json language sql stable security definer set search_path=public as $$
+  select json_build_object('title',s.title,'image',s.image,
+    'paragraphs',(select coalesce(json_agg(co.body order by co.created_at),'[]'::json) from contributions co where co.story_id=s.id))
+  from stories s join circles c on c.id=s.circle_id
+  where s.id=p_id and s.published_at is not null and c.concluded and c.archived_at is null and auth.uid() is not null $$;
 
 create or replace function conclude_circle(p_circle uuid) returns void language plpgsql security definer set search_path=public as $$
 begin
@@ -216,5 +225,5 @@ begin
 end $$;
 
 revoke execute on function do_new_day(uuid), last_slot(time,text), circle_changed() from public, anon, authenticated;
-revoke execute on function is_admin(), tick(), my_state(text), join_circle(text,uuid), submit_turn(text,text), edit_turn(text,text), run_new_day(uuid), circle_ready(uuid), conclude_circle(uuid), finished_stories() from public, anon;
-grant execute on function is_admin(), tick(), my_state(text), join_circle(text,uuid), submit_turn(text,text), edit_turn(text,text), run_new_day(uuid), circle_ready(uuid), conclude_circle(uuid), finished_stories() to authenticated;
+revoke execute on function is_admin(), tick(), my_state(text), join_circle(text,uuid), submit_turn(text,text), edit_turn(text,text), run_new_day(uuid), circle_ready(uuid), conclude_circle(uuid), published_stories(), published_story(uuid) from public, anon;
+grant execute on function is_admin(), tick(), my_state(text), join_circle(text,uuid), submit_turn(text,text), edit_turn(text,text), run_new_day(uuid), circle_ready(uuid), conclude_circle(uuid), published_stories(), published_story(uuid) to authenticated;

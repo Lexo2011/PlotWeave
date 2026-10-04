@@ -9,10 +9,10 @@ header{position:relative;padding-top:4.5rem;overflow:hidden}
 body.wide header,body.wide main{max-width:72rem}
 .topbar{position:absolute;top:1rem;right:1.25rem;display:flex;gap:.6rem;align-items:center;font-size:.9rem}
 h1,h2,h3,h4{font-family:Fraunces,Georgia,serif;font-weight:600;line-height:1.1}
-h1{font-size:clamp(2.4rem,8vw,3.6rem);margin:0 0 .5rem;display:inline-block;position:relative;isolation:isolate}
-/* the hand sits behind the end of the title, its pencil tip on the last letter */
-h1::before{content:"";position:absolute;z-index:-1;left:calc(100% - .42em);bottom:.12em;height:1.9em;aspect-ratio:720/537;background:url(write.png) no-repeat center/contain}
-h1::after{content:"";display:block;width:4.5rem;height:5px;margin-top:.9rem;border-radius:3px;background:linear-gradient(90deg,var(--mark),transparent)}
+h1{font-size:clamp(2.4rem,8vw,3.6rem);margin:0 0 .5rem;padding-bottom:.9rem;position:relative;isolation:isolate;background:linear-gradient(90deg,var(--mark),transparent) no-repeat left bottom/4.5rem 5px}
+/* The hand sits behind the end of the title, its pencil tip on the last letter. It is part of the text line, so it follows
+   the last word when a long title wraps; the negative margins keep it from taking up room in the line. */
+h1::after{content:"";display:inline-block;position:relative;z-index:-1;width:2.55em;height:1.9em;margin:-1.9em -2.55em 0 -.42em;top:.33em;background:url(write.png) no-repeat center/contain}
 h2{font-size:1.6rem;margin:0 0 1rem}
 h3{margin:1.5rem 0 .3rem}
 h4{margin:1rem 0 0}
@@ -41,6 +41,13 @@ form.inline input{flex:1}
 .fields label{display:grid;gap:.2rem;font-size:.9rem}
 .fields label.check{display:flex;gap:.5rem;align-items:center;padding-bottom:.7rem}
 .fields>:not(label){grid-column:1/-1;justify-self:start}
+.pub{margin:.2rem 0 1rem;padding-bottom:1rem;border-bottom:1px solid var(--line)}
+.thumb{max-width:9rem;max-height:6rem;border-radius:6px}
+#done:has(.card){display:grid;grid-template-columns:repeat(auto-fill,minmax(11rem,1fr));gap:1rem}
+.card{display:grid;gap:.5rem;align-content:start;padding:.6rem;text-align:left;font-weight:600;background:#fff;color:inherit;border:1px solid var(--line);border-radius:10px}
+.card img,.card .noimg{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;background:linear-gradient(135deg,var(--paper),var(--line))}
+.card:hover{filter:none;border-color:var(--mark);box-shadow:0 6px 16px -8px rgb(27 33 64/.4)}
+.cover{display:block;max-width:100%;max-height:26rem;margin:1rem 0;border-radius:10px}
 .notice{margin:.8rem 0;padding:.7rem 1rem;font-size:.92rem;background:#fff6dc;border-left:4px solid #e0a100;border-radius:6px}
 .notice ul{margin:.3rem 0;padding-left:1.2rem}
 .tablewrap{overflow-x:auto;margin:.8rem 0}

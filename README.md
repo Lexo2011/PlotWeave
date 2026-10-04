@@ -27,7 +27,8 @@ Only what is needed to connect and log in stays in `config.js`:
 - Turns are handed out per circle when a new day starts: members who have not been asked to start a story are asked to start one; every other story goes to a random member of that circle who has not had a turn in it yet (one turn per member per day).
 - A new day starts when the admin presses "Start next day", or daily at the time set in the circle settings. There is no background job: a circle with a daily time starts its day at the first visit (by a writer or the admin) after that time.
 - A writer who has not written when the next day starts misses that turn for good. The circle moves on without the paragraph, and the admin sees a "Missed turns" notice on that circle.
-- A circle is finished when no turn is open and every member has written or missed every turn. The admin can then conclude it and its stories become readable for everyone, without the names of who wrote what (only the admin sees those).
+- A circle is finished when no turn is open and every member has written or missed every turn. The admin can then conclude it.
+- Stories are published one by one: in a concluded circle, "Bearbeiten" on a story lets the admin set a title and a picture and publish it (or take it back). Everyone with the site password sees the list of published stories and can open one to read it, without the names of who wrote what. Pictures are shrunk in the browser and stored in the database.
 - The admin can edit any paragraph from the dashboard.
 - "Kreis löschen" does not delete anything: it sets `archived_at` on the circle, which hides it everywhere. To bring a circle back, set `archived_at` to null in the Supabase table editor.
 - A writer can change their paragraph until the next day starts.
