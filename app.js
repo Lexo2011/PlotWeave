@@ -21,7 +21,6 @@ const SITE=[
   ['needs_ok','Hinweis bei Kreisen, die schon begonnen haben','Läuft schon – dein Beitritt muss erst bestätigt werden.'],
   ['pending','Wenn jemand auf die Bestätigung wartet ({name} wird ersetzt)','Deine Anfrage für „{name}“ wartet noch auf die Bestätigung.'],
   ['finished_heading','Überschrift der veröffentlichten Geschichten','Veröffentlichte Geschichten'],
-  ['finished_empty','Wenn noch keine Geschichte veröffentlicht ist','Noch keine veröffentlichten Geschichten.'],
   ['untitled','Name einer Geschichte ohne Titel','Ohne Titel'],
   ['back','Link von einer Geschichte zurück zur Liste','Zurück zur Liste']];
 // Texts a writer sees inside a circle are stored on that circle (circles.texts).
@@ -71,7 +70,7 @@ async function render(){
   me=isAdmin?ADMIN:(ses?localStorage.getItem('author'):null);
   if(me===ADMIN&&!isAdmin)me=null;
   document.body.classList.toggle('wide',isAdmin);
-  show('gate',!ses);show('login',!!ses&&!me);show('app',!!me&&!isAdmin);show('admin',isAdmin);show('finished',!!ses);
+  show('gate',!ses);show('login',!!ses&&!me);show('app',!!me&&!isAdmin);show('admin',isAdmin);if(!ses)show('finished',false);
   $('#who').textContent=me?txt('signed_in').replace('{name}',me):'';show('out',!!me);
   if(me&&!isAdmin)await renderUser();
   if(isAdmin)await renderAdmin();
@@ -79,7 +78,10 @@ async function render(){
 }
 
 async function renderUser(){
-  const s=await rpc('my_state',{p_user:me}),t=s.turn,c=s.circle,L=k=>esc(ctxt(c,k));let h;
+  let s=await rpc('my_state',{p_user:me}),h;
+  // With a single circle to choose from there is nothing to choose: join it right away. Not if it has already begun, because that asks the admin.
+  if(!s.circle&&!s.pending&&s.joinable.length===1&&!s.joinable[0].begun){await rpc('join_circle',{p_user:me,p_circle:s.joinable[0].id});s=await rpc('my_state',{p_user:me})}
+  const t=s.turn,c=s.circle,L=k=>esc(ctxt(c,k));
   editing=!!(t&&t.done);max=c?c.max_chars:500;
   const ctx=t?t.parts.map((p,i)=>(i&&p.n!==t.parts[i-1].n+1?'<p class="note">…</p>':'')+`<blockquote>${esc(p.body)}</blockquote>`).join(''):'';
   if(!c&&s.pending)h=`<p>${esc(txt('pending').replace('{name}',s.pending))}</p>`;
@@ -149,9 +151,10 @@ async function renderAdmin(){
 // Published stories: a list, or the one that was clicked. No names of who wrote what.
 async function renderFinished(){
   const s=reading&&await rpc('published_story',{p_id:reading});
-  if(s){$('#done').innerHTML=`<button class="link" data-back>← ${esc(txt('back'))}</button><h3>${esc(s.title||txt('untitled'))}</h3>`+(s.image?`<img class="cover" src="${esc(s.image)}" alt="">`:'')+s.paragraphs.map(p=>`<p>${esc(p)}</p>`).join('');return}
+  if(s){show('finished',true);$('#done').innerHTML=`<button class="link" data-back>← ${esc(txt('back'))}</button><h3>${esc(s.title||txt('untitled'))}</h3>`+(s.image?`<img class="cover" src="${esc(s.image)}" alt="">`:'')+s.paragraphs.map(p=>`<p>${esc(p)}</p>`).join('');return}
   reading=null;
-  $('#done').innerHTML=(await rpc('published_stories')).map(s=>`<button class="card" data-read="${s.id}">${s.thumb?`<img src="${esc(s.thumb)}" alt="">`:'<span class="noimg"></span>'}<span>${esc(s.title||txt('untitled'))}</span></button>`).join('')||`<p>${esc(txt('finished_empty'))}</p>`;
+  const list=await rpc('published_stories');show('finished',list.length>0);  // no published stories: no section
+  $('#done').innerHTML=list.map(s=>`<button class="card" data-read="${s.id}">${s.thumb?`<img src="${esc(s.thumb)}" alt="">`:'<span class="noimg"></span>'}<span>${esc(s.title||txt('untitled'))}</span></button>`).join('');
 }
 
 $('#gate').onsubmit=async e=>{e.preventDefault();
