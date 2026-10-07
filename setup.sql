@@ -34,6 +34,7 @@ alter table circles add column if not exists tz text not null default 'UTC';    
 alter table circles add column if not exists schedule_since timestamptz not null default now();
 alter table circles add column if not exists last_distributed_at timestamptz;
 alter table members add column if not exists approved boolean not null default true;  -- false: asked to join a circle that has already begun, waits for the admin
+alter table members add column if not exists removed_at timestamptz;            -- set when the admin removes someone from a circle; the row stays so they cannot simply join again
 -- Publishing happens per story, from the admin panel.
 alter table stories add column if not exists title text;
 alter table stories add column if not exists image text;                        -- picture as a data: URL, shrunk in the browser
@@ -99,14 +100,14 @@ begin
   -- Yesterday's turns can no longer be edited. A turn nobody answered is skipped for good: the circle moves on without that paragraph.
   update assignments set missed = not done, active=false where circle_id=p_circle and active;
   -- members who have not been asked to start a story yet are asked to start one
-  for m in select mb.username from members mb where mb.circle_id=p_circle and mb.approved
+  for m in select mb.username from members mb where mb.circle_id=p_circle and mb.approved and mb.removed_at is null
       and not exists(select 1 from stories st where st.circle_id=p_circle and st.starter=mb.username)
       and not exists(select 1 from assignments a where a.circle_id=p_circle and a.username=mb.username and a.story_id is null and a.missed) loop
     insert into assignments(circle_id,username) values (p_circle,m); busy := busy||m; n := n+1;
   end loop;
   -- each story goes to a random member who has not had a turn in it and has no other turn today
   for s in select st.id from stories st where st.circle_id=p_circle order by random() loop
-    select mb.username into m from members mb where mb.circle_id=p_circle and mb.approved and not (mb.username = any(busy))
+    select mb.username into m from members mb where mb.circle_id=p_circle and mb.approved and mb.removed_at is null and not (mb.username = any(busy))
       and not exists(select 1 from contributions co where co.story_id=s.id and co.author=mb.username)
       and not exists(select 1 from assignments a where a.story_id=s.id and a.username=mb.username)
     order by random() limit 1;
@@ -145,14 +146,14 @@ begin
         from (select body, row_number() over(order by created_at) rn, count(*) over() cnt from contributions where story_id=asg.story_id and author<>u) r
         where r.rn <= cir.visible_first or r.rn > r.cnt - cir.visible_last));
   else
-    select c.* into cir from circles c join members mb on mb.circle_id=c.id where mb.username=u and mb.approved and not c.concluded and c.archived_at is null order by mb.joined_at desc limit 1;
+    select c.* into cir from circles c join members mb on mb.circle_id=c.id where mb.username=u and mb.approved and mb.removed_at is null and not c.concluded and c.archived_at is null order by mb.joined_at desc limit 1;
   end if;
   return json_build_object('turn',t,
     'in_circle',cir.id is not null,
     'circle',case when cir.id is not null then json_build_object('name',cir.name,'description',cir.description,'texts',cir.texts,'max_chars',cir.max_chars,
       'next',case when cir.distribute_at is not null then last_slot(cir.distribute_at,cir.tz) + interval '1 day' end) end,
     -- name of the circle this user has asked to join and is waiting for
-    'pending',(select c.name from circles c join members mb on mb.circle_id=c.id where mb.username=u and not mb.approved and not c.concluded and c.archived_at is null order by mb.joined_at desc limit 1),
+    'pending',(select c.name from circles c join members mb on mb.circle_id=c.id where mb.username=u and not mb.approved and mb.removed_at is null and not c.concluded and c.archived_at is null order by mb.joined_at desc limit 1),
     'joinable',(select coalesce(json_agg(json_build_object('id',c.id,'name',c.name,'description',c.description,'begun',c.last_distributed_at is not null) order by c.created_at),'[]'::json) from circles c
       where not c.concluded and c.archived_at is null and c.joinable and not exists(select 1 from members mb where mb.circle_id=c.id and mb.username=u)));
 end $$;
@@ -174,6 +175,15 @@ begin
   if not is_admin() then raise exception 'Nur für Admins'; end if;
   update members set approved=true where circle_id=p_circle and username=p_user and not approved;
   if found then insert into assignments(circle_id,username) values (p_circle,p_user); end if;  -- may start their story right away
+end $$;
+
+-- The admin removes someone from a circle: they get no more turns and an open turn is closed, so its story moves on
+-- with the next day. What they have written stays in the stories.
+create or replace function remove_member(p_circle uuid, p_user text) returns void language plpgsql security definer set search_path=public as $$
+begin
+  if not is_admin() then raise exception 'Nur für Admins'; end if;
+  update members set removed_at=now() where circle_id=p_circle and username=p_user and removed_at is null;
+  update assignments set active=false where circle_id=p_circle and username=p_user and active;
 end $$;
 
 create or replace function submit_turn(p_user text, p_body text) returns void language plpgsql security definer set search_path=public as $$
@@ -216,10 +226,10 @@ end $$;
 create or replace function circle_ready(p_circle uuid) returns boolean language sql stable security definer set search_path=public as $$
   select exists(select 1 from stories where circle_id=p_circle)
     and not exists(select 1 from assignments where circle_id=p_circle and active and not done)
-    and not exists(select 1 from members m where m.circle_id=p_circle and m.approved
+    and not exists(select 1 from members m where m.circle_id=p_circle and m.approved and m.removed_at is null
       and not exists(select 1 from stories s where s.circle_id=p_circle and s.starter=m.username)
       and not exists(select 1 from assignments a where a.circle_id=p_circle and a.username=m.username and a.story_id is null and a.missed))
-    and not exists(select 1 from members m join stories s on s.circle_id=m.circle_id where m.circle_id=p_circle and m.approved
+    and not exists(select 1 from members m join stories s on s.circle_id=m.circle_id where m.circle_id=p_circle and m.approved and m.removed_at is null
       and not exists(select 1 from contributions c where c.story_id=s.id and c.author=m.username)
       and not exists(select 1 from assignments a where a.story_id=s.id and a.username=m.username and a.missed)) $$;
 
@@ -244,5 +254,5 @@ begin
 end $$;
 
 revoke execute on function do_new_day(uuid), last_slot(time,text), circle_changed() from public, anon, authenticated;
-revoke execute on function is_admin(), tick(), my_state(text), join_circle(text,uuid), approve_member(uuid,text), submit_turn(text,text), edit_turn(text,text), run_new_day(uuid), circle_ready(uuid), conclude_circle(uuid), published_stories(), published_story(uuid) from public, anon;
-grant execute on function is_admin(), tick(), my_state(text), join_circle(text,uuid), approve_member(uuid,text), submit_turn(text,text), edit_turn(text,text), run_new_day(uuid), circle_ready(uuid), conclude_circle(uuid), published_stories(), published_story(uuid) to authenticated;
+revoke execute on function is_admin(), tick(), my_state(text), join_circle(text,uuid), approve_member(uuid,text), remove_member(uuid,text), submit_turn(text,text), edit_turn(text,text), run_new_day(uuid), circle_ready(uuid), conclude_circle(uuid), published_stories(), published_story(uuid) from public, anon;
+grant execute on function is_admin(), tick(), my_state(text), join_circle(text,uuid), approve_member(uuid,text), remove_member(uuid,text), submit_turn(text,text), edit_turn(text,text), run_new_day(uuid), circle_ready(uuid), conclude_circle(uuid), published_stories(), published_story(uuid) to authenticated;

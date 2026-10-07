@@ -101,12 +101,12 @@ async function renderUser(){
 async function renderAdmin(){
   await rpc('tick');  // hands out turns for circles whose daily time has passed
   const[a,b]=await Promise.all([
-    sb.from('circles').select('*,members(username,approved),stories(id,starter,created_at,title,thumb,published_at,contributions(id,author,body,created_at,edited_at,edited_by))').is('archived_at',null).order('created_at',{ascending:false}),
+    sb.from('circles').select('*,members(username,approved,removed_at),stories(id,starter,created_at,title,thumb,published_at,contributions(id,author,body,created_at,edited_at,edited_by))').is('archived_at',null).order('created_at',{ascending:false}),
     sb.from('assignments').select('story_id,circle_id,username,done,active,missed,seen,assigned_at')]);
   if(a.error)throw a.error;if(b.error)throw b.error;
   $('#site').innerHTML=SITE.map(f=>field(f,site[f[0]])).join('')+'<p class="note">Ein leeres Feld verwendet den grau angezeigten Text.</p><button>Seiteneinstellungen speichern</button>';
   $('#circlelist').innerHTML=a.data.map(c=>{
-    const asg=b.data.filter(x=>x.circle_id===c.id),mem=c.members.filter(m=>m.approved).map(m=>m.username),asking=c.members.filter(m=>!m.approved).map(m=>m.username),pend=asg.filter(x=>x.active&&!x.done);
+    const asg=b.data.filter(x=>x.circle_id===c.id),here=c.members.filter(m=>!m.removed_at),gone=c.members.filter(m=>m.removed_at).map(m=>m.username),mem=here.filter(m=>m.approved).map(m=>m.username),asking=here.filter(m=>!m.approved).map(m=>m.username),pend=asg.filter(x=>x.active&&!x.done);
     const missed=(u,sid)=>asg.some(x=>x.missed&&x.username===u&&x.story_id===sid);
     // finished: no open turn, and every member has written or missed their turn to start a story and their turn in every story
     const full=c.stories.length>0&&!pend.length&&mem.every(u=>(c.stories.some(s=>s.starter===u)||missed(u,null))&&c.stories.every(s=>s.contributions.some(x=>x.author===u)||missed(u,s.id)));
@@ -141,7 +141,8 @@ async function renderAdmin(){
       +`<label>Maximale Länge eines Absatzes (Zeichen)<input name="max_chars" type="number" min="50" max="5000" required value="${c.max_chars}"></label>`
       +'<h4>Texte, die Schreibende in diesem Kreis sehen</h4>'+CIRCLE.map(f=>field(f,c.texts&&c.texts[f[0]],'t_')).join('')
       +`<p class="note">Ein leeres Textfeld verwendet den grau angezeigten Text. Die Uhrzeit gilt in deiner Zeitzone (${esc(TZ)}).</p><button>Kreiseinstellungen speichern</button></form></details>`;
-    return `<article><h3>${esc(c.name)}${c.concluded?' (abgeschlossen)':''}</h3>${joins}${notice}<p class="note">Mitglieder: ${mem.map(esc).join(', ')||'noch keine'}${starting.length?'. Sollen eine Geschichte beginnen: '+starting.join(', '):''}</p>`
+    return `<article><h3>${esc(c.name)}${c.concluded?' (abgeschlossen)':''}</h3>${joins}${notice}<p class="note">Mitglieder: ${mem.map(u=>esc(u)+(c.concluded?'':`<button class="link x" data-kick="${c.id}" data-user="${u}" title="${u} aus dem Kreis entfernen">×</button>`)).join(', ')||'noch keine'}${starting.length?'. Sollen eine Geschichte beginnen: '+starting.join(', '):''}`
+      +(gone.length?'. Entfernt: '+gone.map(u=>esc(u)+(c.concluded?'':` <button class="link" data-back="${c.id}" data-user="${u}">wieder aufnehmen</button>`)).join(', '):'')+'</p>'
       +(c.concluded?'':`<p class="note">Die Geschichten werden ${when} weitergegeben. Zuletzt: ${fmt(c.last_distributed_at)}.</p>`)
       +(rows?`<div class="tablewrap"><table><tr><th>Begonnen von</th><th>Begonnen am</th><th>Absätze</th><th>Noch zu schreiben</th><th>Verpasst</th><th>Zuletzt geändert von</th><th>Zuletzt geändert am</th><th>Veröffentlicht</th><th></th></tr>${rows}</table></div>`:'<p class="note">Noch keine Geschichten.</p>')
       +'<p>'+(!c.concluded?`<button data-newday="${c.id}">Nächsten Tag starten</button> `:'')+(!c.concluded&&full?`<button data-conclude="${c.id}">Kreis abschließen</button> `:'')+`<button class="link" data-del="${c.id}">Kreis löschen</button></p>${form}</article>`;
@@ -199,6 +200,8 @@ $('#admin').onclick=e=>{const d=e.target.dataset;
   if(d.copy)navigator.clipboard.writeText(texts.get(d.copy)||'').then(()=>{e.target.textContent='Kopiert ✓';setTimeout(()=>e.target.textContent='Kopieren',1500)},()=>alert('Kopieren hat nicht geklappt.'));
   if(d.ok)act(()=>rpc('approve_member',{p_circle:d.ok,p_user:d.user}));
   if(d.no&&confirm(d.user+' ablehnen?'))act(async()=>{const{error}=await sb.from('members').delete().eq('circle_id',d.no).eq('username',d.user).eq('approved',false);if(error)throw error});
+  if(d.kick&&confirm(d.user+' aus diesem Kreis entfernen? Schon geschriebene Absätze bleiben in den Geschichten.'))act(()=>rpc('remove_member',{p_circle:d.kick,p_user:d.user}));
+  if(d.back)act(async()=>{const{error}=await sb.from('members').update({removed_at:null}).eq('circle_id',d.back).eq('username',d.user);if(error)throw error});
   if(d.seen)act(async()=>{const{error}=await sb.from('assignments').update({seen:true}).eq('circle_id',d.seen).eq('missed',true);if(error)throw error});
   if(d.conclude)act(()=>rpc('conclude_circle',{p_circle:d.conclude}));
   if(d.newday&&confirm('Den nächsten Tag für diesen Kreis starten? Wer bis jetzt nicht geschrieben hat, wird übersprungen, und der Absatz von gestern kann nicht mehr geändert werden.'))act(async()=>{alert(await rpc('run_new_day',{p_circle:d.newday})+' Schreibende sind jetzt an der Reihe.')});
