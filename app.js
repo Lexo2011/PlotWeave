@@ -30,6 +30,8 @@ const CIRCLE=[
   ['waiting','Wenn jemand gerade nicht an der Reihe ist','Gerade bist du nicht an der Reihe. Die nächste Geschichte kommt, wenn der nächste Tag beginnt.'],
   ['submitted','Nach dem Schreiben','Dein Absatz ist gespeichert. Du kannst ihn ändern, bis der nächste Tag beginnt.'],
   ['so_far','Über der Geschichte, nach dem Schreiben','Die Geschichte bisher:'],
+  ['ending','Wenn die Geschichte bald endet ({n} wird durch die Zahl der restlichen Absätze ersetzt)','Nur noch {n} Absätze bis zum Ende dieser Geschichte – lenke sie langsam auf ihren Schluss zu.'],
+  ['last','Beim letzten Absatz einer Geschichte','Das ist der letzte Absatz dieser Geschichte. Bring sie zu einem Ende!'],
   ['next','Nächste Weitergabe ({time} wird ersetzt; nur mit täglicher Uhrzeit)','Die Geschichten werden am {time} weitergegeben.'],
   ['label','Beschriftung des Textfelds','Dein Absatz'],
   ['submit','Knopf zum Hinzufügen','Zur Geschichte hinzufügen'],
@@ -91,7 +93,7 @@ async function renderUser(){
     if(!t)h+=`<p>${L('waiting')}</p>`;
     else if(t.done)h+=(ctx?`<p>${L('so_far')}</p>`+ctx:'')+`<p>${L('submitted')}</p>`;
     else if(!t.story_id)h+=`<p>${L('start')}</p>`;
-    else h+=`<p>${L('continue')}</p>`+ctx;
+    else h+=`<p>${L('continue')}</p>`+ctx+(c.ending_hint&&t.left&&t.left<=c.ending_hint?`<p class="notice">${t.left===1?L('last'):L('ending').replace('{n}',t.left)}</p>`:'');
     if(c.next)h+=`<p class="note">${L('next').replace('{time}',fmt(c.next))}</p>`;
   }
   $('#prompt').innerHTML=h;show('form',!!t);
@@ -139,6 +141,7 @@ async function renderAdmin(){
       +`<label>Sichtbare Absätze vom Anfang einer Geschichte<input name="visible_first" type="number" min="0" max="50" required value="${c.visible_first}"></label>`
       +`<label>Sichtbare Absätze vom Ende einer Geschichte<input name="visible_last" type="number" min="0" max="50" required value="${c.visible_last}"></label>`
       +`<label>Maximale Länge eines Absatzes (Zeichen)<input name="max_chars" type="number" min="50" max="5000" required value="${c.max_chars}"></label>`
+      +`<label>Hinweis aufs Ende, wenn nur noch so viele Absätze fehlen (0: nie)<input name="ending_hint" type="number" min="0" max="50" required value="${c.ending_hint??3}"></label>`
       +'<h4>Texte, die Schreibende in diesem Kreis sehen</h4>'+CIRCLE.map(f=>field(f,c.texts&&c.texts[f[0]],'t_')).join('')
       +`<p class="note">Ein leeres Textfeld verwendet den grau angezeigten Text. Die Uhrzeit gilt in deiner Zeitzone (${esc(TZ)}).</p><button>Kreiseinstellungen speichern</button></form></details>`;
     return `<article><h3>${esc(c.name)}${c.concluded?' (abgeschlossen)':''}</h3>${joins}${notice}<p class="note">Mitglieder: ${mem.map(u=>esc(u)+(c.concluded?'':`<button class="link x" data-kick="${c.id}" data-user="${u}" title="${u} aus dem Kreis entfernen">×</button>`)).join(', ')||'noch keine'}${starting.length?'. Sollen eine Geschichte beginnen: '+starting.join(', '):''}`
@@ -192,7 +195,7 @@ $('#admin').addEventListener('submit',e=>{const id=e.target.dataset.circle;if(!i
   const v=Object.fromEntries(new FormData(e.target)),texts={};
   CIRCLE.forEach(([k])=>{const t=v['t_'+k].trim();if(t)texts[k]=t});
   act(async()=>{const{error}=await sb.from('circles').update({name:v.name.trim(),description:v.description.trim(),joinable:'joinable' in v,distribute_at:v.distribute_at||null,tz:TZ,
-    visible_first:+v.visible_first,visible_last:+v.visible_last,max_chars:+v.max_chars,texts}).eq('id',id);if(error)throw error})});
+    visible_first:+v.visible_first,visible_last:+v.visible_last,max_chars:+v.max_chars,ending_hint:+v.ending_hint,texts}).eq('id',id);if(error)throw error})});
 $('#admin').addEventListener('toggle',e=>{const id=e.target.dataset.cfg;if(id)e.target.open?openCfg.add(id):openCfg.delete(id)},true);
 $('#admin').onclick=e=>{const d=e.target.dataset;
   if(d.toggle){const r=$('#e-'+d.toggle);r.hidden=!r.hidden;r.hidden?openRows.delete(d.toggle):openRows.add(d.toggle);e.target.textContent=r.hidden?'Bearbeiten':'Schließen'}

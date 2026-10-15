@@ -33,6 +33,7 @@ alter table circles add column if not exists distribute_at time;                
 alter table circles add column if not exists tz text not null default 'UTC';    -- time zone distribute_at is meant in
 alter table circles add column if not exists schedule_since timestamptz not null default now();
 alter table circles add column if not exists last_distributed_at timestamptz;
+alter table circles add column if not exists ending_hint int not null default 3; -- writers are told when a story has this many paragraphs or fewer left (0: never)
 alter table members add column if not exists approved boolean not null default true;  -- false: asked to join a circle that has already begun, waits for the admin
 alter table members add column if not exists removed_at timestamptz;            -- set when the admin removes someone from a circle; the row stays so they cannot simply join again
 -- Publishing happens per story, from the admin panel.
@@ -167,6 +168,10 @@ begin
   if found then
     select * into cir from circles where id=asg.circle_id;
     t := json_build_object('story_id',asg.story_id,'done',asg.done,
+      -- paragraphs this story still gets: members who have neither written in it nor missed their turn in it (the writer included)
+      'left',(select count(*) from members mb where mb.circle_id=asg.circle_id and mb.approved and mb.removed_at is null
+        and not exists(select 1 from contributions co where co.story_id=asg.story_id and co.author=mb.username)
+        and not exists(select 1 from assignments x where x.story_id=asg.story_id and x.username=mb.username and x.missed)),
       'own',(select body from contributions where story_id=asg.story_id and author=u),
       'parts',(select coalesce(json_agg(json_build_object('n',r.rn,'body',r.body) order by r.rn),'[]'::json)
         from (select body, row_number() over(order by created_at) rn, count(*) over() cnt from contributions where story_id=asg.story_id and author<>u) r
@@ -176,7 +181,7 @@ begin
   end if;
   return json_build_object('turn',t,
     'in_circle',cir.id is not null,
-    'circle',case when cir.id is not null then json_build_object('name',cir.name,'description',cir.description,'texts',cir.texts,'max_chars',cir.max_chars,
+    'circle',case when cir.id is not null then json_build_object('name',cir.name,'description',cir.description,'texts',cir.texts,'max_chars',cir.max_chars,'ending_hint',cir.ending_hint,
       'next',case when cir.distribute_at is not null then last_slot(cir.distribute_at,cir.tz) + interval '1 day' end) end,
     -- name of the circle this user has asked to join and is waiting for
     'pending',(select c.name from circles c join members mb on mb.circle_id=c.id where mb.username=u and not mb.approved and mb.removed_at is null and not c.concluded and c.archived_at is null order by mb.joined_at desc limit 1),

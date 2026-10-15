@@ -35,5 +35,6 @@ Only what is needed to connect and log in stays in `config.js`:
 - The admin can edit any paragraph from the dashboard.
 - "Kreis löschen" does not delete anything: it sets `archived_at` on the circle, which hides it everywhere. To bring a circle back, set `archived_at` to null in the Supabase table editor.
 - A writer can change their paragraph until the next day starts.
+- When a story has only a few paragraphs left (3 by default, set per circle; 0 turns it off), the writer continuing it is told so, and on the last paragraph that it is the last one.
 - How much of a story a writer sees (first N and last N paragraphs) is enforced by the database.
 - The background colour changes every day (same colour for everyone on the same date).
