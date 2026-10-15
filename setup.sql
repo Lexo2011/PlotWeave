@@ -91,9 +91,10 @@ create trigger circle_changed before insert or update on circles for each row ex
 -- The "new day" logic for one circle.
 drop function if exists do_new_day();
 drop function if exists run_new_day();
-drop function if exists do_new_day(uuid);
-create function do_new_day(p_circle uuid) returns int language plpgsql security definer set search_path=public as $$
-declare s record; m text; n int := 0; busy text[] := '{}';
+create or replace function do_new_day(p_circle uuid) returns int language plpgsql security definer set search_path=public as $$
+declare m text; n int := 0; busy text[] := '{}';
+  st uuid[]; mb text[]; ns int; nm int; ok boolean[]; owner int[]; mine int[]; came int[]; seen boolean[]; q int[];
+  i int; j int; k int; head int; hit int; prev int;
 begin
   perform 1 from circles where id=p_circle and not concluded and archived_at is null for update;
   if not found then return 0; end if;
@@ -105,16 +106,41 @@ begin
       and not exists(select 1 from assignments a where a.circle_id=p_circle and a.username=mb.username and a.story_id is null and a.missed) loop
     insert into assignments(circle_id,username) values (p_circle,m); busy := busy||m; n := n+1;
   end loop;
-  -- each story goes to a random member who has not had a turn in it and has no other turn today
-  for s in select st.id from stories st where st.circle_id=p_circle order by random() loop
-    select mb.username into m from members mb where mb.circle_id=p_circle and mb.approved and mb.removed_at is null and not (mb.username = any(busy))
-      and not exists(select 1 from contributions co where co.story_id=s.id and co.author=mb.username)
-      and not exists(select 1 from assignments a where a.story_id=s.id and a.username=mb.username)
-    order by random() limit 1;
-    if m is not null then
-      insert into assignments(circle_id,username,story_id) values (p_circle,m,s.id); busy := busy||m; n := n+1;
-    end if;
-  end loop;
+  -- Each story goes to a member who has not had a turn in it and has no other turn today. Stories and members are paired
+  -- so that as many stories as possible get a writer: handing them out one by one can leave a member without a story
+  -- although a better split exists. Among equally good splits the choice is random.
+  select array_agg(x.id order by random()) into st from stories x where x.circle_id=p_circle;
+  select array_agg(x.username order by random()) into mb from members x where x.circle_id=p_circle and x.approved and x.removed_at is null and not (x.username = any(busy));
+  ns := coalesce(array_length(st,1),0); nm := coalesce(array_length(mb,1),0);
+  if ns>0 and nm>0 then
+    -- ok[(i-1)*nm+j]: member j may write in story i
+    select array_agg(not exists(select 1 from contributions co where co.story_id=st[a] and co.author=mb[b])
+                 and not exists(select 1 from assignments x where x.story_id=st[a] and x.username=mb[b]) order by a,b)
+      into ok from generate_series(1,ns) a, generate_series(1,nm) b;
+    owner := array_fill(0,array[nm]);  -- story given to member j
+    mine := array_fill(0,array[ns]);   -- member given story i
+    for i in 1..ns loop
+      -- look for a chain from story i to a free member, moving other stories along the way (breadth first)
+      q := array[i]; head := 1; hit := 0; came := array_fill(0,array[nm]); seen := array_fill(false,array[nm]);
+      while hit=0 and head <= array_length(q,1) loop
+        k := q[head]; head := head+1;
+        for j in 1..nm loop
+          if ok[(k-1)*nm+j] and not seen[j] then
+            seen[j] := true; came[j] := k;
+            if owner[j]=0 then hit := j; exit; end if;
+            q := q || owner[j];
+          end if;
+        end loop;
+      end loop;
+      -- shift the stories along that chain
+      while hit>0 loop
+        k := came[hit]; prev := mine[k]; owner[hit] := k; mine[k] := hit; hit := prev;
+      end loop;
+    end loop;
+    for i in 1..ns loop
+      if mine[i]>0 then insert into assignments(circle_id,username,story_id) values (p_circle,mb[mine[i]],st[i]); n := n+1; end if;
+    end loop;
+  end if;
   update circles set last_distributed_at=now() where id=p_circle;
   return n;
 end $$;
