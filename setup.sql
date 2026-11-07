@@ -42,6 +42,12 @@ alter table stories add column if not exists image text;                        
 alter table stories add column if not exists thumb text;                        -- small version of it for the list
 alter table stories add column if not exists published_at timestamptz;          -- null = not published
 alter table circles add column if not exists archived_at timestamptz;           -- set when the admin deletes a circle: hidden everywhere, but kept
+-- Final round: one more turn per story, in which someone writes its ending (admin panel > "Schlussrunde starten").
+alter table assignments add column if not exists final boolean not null default false;    -- a turn to write the ending
+alter table contributions add column if not exists final boolean not null default false;  -- the ending
+-- One paragraph per writer and story, plus possibly the ending.
+alter table contributions drop constraint if exists contributions_story_id_author_key;
+create unique index if not exists contributions_one_per_writer on contributions(story_id, author, final);
 -- The longest paragraph is set per circle (max_chars); this is only the upper bound.
 alter table contributions drop constraint if exists contributions_body_check;
 alter table contributions add constraint contributions_body_check check (char_length(body) between 1 and 5000);
@@ -89,13 +95,39 @@ end $$;
 drop trigger if exists circle_changed on circles;
 create trigger circle_changed before insert or update on circles for each row execute function circle_changed();
 
+-- Pairs ns stories with nm members so that as many stories as possible get one. ok[(i-1)*nm+j] says whether member j may
+-- take story i. Returns for every story the member it gets (0: none). Handing stories out one by one can leave a member
+-- without a story although a better split exists, so each story looks for a chain of moves that frees a member for it.
+create or replace function pair_up(ok boolean[], ns int, nm int) returns int[] language plpgsql immutable as $$
+declare owner int[] := array_fill(0,array[greatest(nm,1)]); mine int[] := array_fill(0,array[greatest(ns,1)]);
+  came int[]; seen boolean[]; q int[]; i int; j int; k int; head int; hit int; prev int;
+begin
+  for i in 1..ns loop
+    -- look for a chain from story i to a free member, moving other stories along the way (breadth first)
+    q := array[i]; head := 1; hit := 0; came := array_fill(0,array[nm]); seen := array_fill(false,array[nm]);
+    while hit=0 and head <= array_length(q,1) loop
+      k := q[head]; head := head+1;
+      for j in 1..nm loop
+        if ok[(k-1)*nm+j] and not seen[j] then
+          seen[j] := true; came[j] := k;
+          if owner[j]=0 then hit := j; exit; end if;
+          q := q || owner[j];
+        end if;
+      end loop;
+    end loop;
+    -- shift the stories along that chain
+    while hit>0 loop
+      k := came[hit]; prev := mine[k]; owner[hit] := k; mine[k] := hit; hit := prev;
+    end loop;
+  end loop;
+  return mine;
+end $$;
+
 -- The "new day" logic for one circle.
 drop function if exists do_new_day();
 drop function if exists run_new_day();
 create or replace function do_new_day(p_circle uuid) returns int language plpgsql security definer set search_path=public as $$
-declare m text; n int := 0; busy text[] := '{}';
-  st uuid[]; mb text[]; ns int; nm int; ok boolean[]; owner int[]; mine int[]; came int[]; seen boolean[]; q int[];
-  i int; j int; k int; head int; hit int; prev int;
+declare m text; n int := 0; busy text[] := '{}'; st uuid[]; mb text[]; ns int; nm int; ok boolean[]; mine int[]; i int;
 begin
   perform 1 from circles where id=p_circle and not concluded and archived_at is null for update;
   if not found then return 0; end if;
@@ -107,9 +139,8 @@ begin
       and not exists(select 1 from assignments a where a.circle_id=p_circle and a.username=mb.username and a.story_id is null and a.missed) loop
     insert into assignments(circle_id,username) values (p_circle,m); busy := busy||m; n := n+1;
   end loop;
-  -- Each story goes to a member who has not had a turn in it and has no other turn today. Stories and members are paired
-  -- so that as many stories as possible get a writer: handing them out one by one can leave a member without a story
-  -- although a better split exists. Among equally good splits the choice is random.
+  -- Each story goes to a member who has not had a turn in it and has no other turn today, paired so that as many stories
+  -- as possible get a writer. Among equally good pairings the choice is random.
   select array_agg(x.id order by random()) into st from stories x where x.circle_id=p_circle;
   select array_agg(x.username order by random()) into mb from members x where x.circle_id=p_circle and x.approved and x.removed_at is null and not (x.username = any(busy));
   ns := coalesce(array_length(st,1),0); nm := coalesce(array_length(mb,1),0);
@@ -118,31 +149,49 @@ begin
     select array_agg(not exists(select 1 from contributions co where co.story_id=st[a] and co.author=mb[b])
                  and not exists(select 1 from assignments x where x.story_id=st[a] and x.username=mb[b]) order by a,b)
       into ok from generate_series(1,ns) a, generate_series(1,nm) b;
-    owner := array_fill(0,array[nm]);  -- story given to member j
-    mine := array_fill(0,array[ns]);   -- member given story i
-    for i in 1..ns loop
-      -- look for a chain from story i to a free member, moving other stories along the way (breadth first)
-      q := array[i]; head := 1; hit := 0; came := array_fill(0,array[nm]); seen := array_fill(false,array[nm]);
-      while hit=0 and head <= array_length(q,1) loop
-        k := q[head]; head := head+1;
-        for j in 1..nm loop
-          if ok[(k-1)*nm+j] and not seen[j] then
-            seen[j] := true; came[j] := k;
-            if owner[j]=0 then hit := j; exit; end if;
-            q := q || owner[j];
-          end if;
-        end loop;
-      end loop;
-      -- shift the stories along that chain
-      while hit>0 loop
-        k := came[hit]; prev := mine[k]; owner[hit] := k; mine[k] := hit; hit := prev;
-      end loop;
-    end loop;
+    mine := pair_up(ok,ns,nm);
     for i in 1..ns loop
       if mine[i]>0 then insert into assignments(circle_id,username,story_id) values (p_circle,mb[mine[i]],st[i]); n := n+1; end if;
     end loop;
   end if;
   update circles set last_distributed_at=now() where id=p_circle;
+  return n;
+end $$;
+
+-- Final round: every story of the circle that has no ending yet goes once more to a member, who writes its ending.
+-- Nobody gets the story whose last paragraph they wrote, and if possible not the story they started. Open turns are closed
+-- as on a new day, the daily time is switched off (so there is time to write) and a concluded circle is opened again.
+-- Running it again only hands out the endings that are still missing. Returns how many endings were handed out.
+create or replace function start_final_round(p_circle uuid) returns int language plpgsql security definer set search_path=public as $$
+declare st uuid[]; starters text[]; lastw text[]; mb text[]; ns int; nm int; ok boolean[]; mine int[]; used boolean[]; i int; j int; n int := 0;
+begin
+  if not is_admin() then raise exception 'Nur für Admins'; end if;
+  perform 1 from circles where id=p_circle and archived_at is null for update;
+  if not found then raise exception 'Diesen Kreis gibt es nicht'; end if;
+  update circles set concluded=false, distribute_at=null where id=p_circle;
+  update assignments set missed = not done, active=false where circle_id=p_circle and active;
+  select array_agg(x.id order by x.r), array_agg(x.starter order by x.r), array_agg(x.lastw order by x.r) into st, starters, lastw
+    from (select s.id, s.starter, random() r, (select co.author from contributions co where co.story_id=s.id order by co.created_at desc limit 1) lastw
+          from stories s where s.circle_id=p_circle and exists(select 1 from contributions co where co.story_id=s.id)
+            and not exists(select 1 from contributions co where co.story_id=s.id and co.final)) x;
+  select array_agg(x.username order by random()) into mb from members x where x.circle_id=p_circle and x.approved and x.removed_at is null;
+  ns := coalesce(array_length(st,1),0); nm := coalesce(array_length(mb,1),0);
+  if ns=0 or nm=0 then return 0; end if;
+  select array_agg(mb[b]<>lastw[a] and mb[b]<>starters[a] order by a,b) into ok from generate_series(1,ns) a, generate_series(1,nm) b;
+  mine := pair_up(ok,ns,nm);
+  used := array_fill(false,array[nm]);
+  for i in 1..ns loop if mine[i]>0 then used[mine[i]] := true; end if; end loop;
+  -- stories still without a writer take any free member: first one who did not write the last paragraph, else anyone
+  for i in 1..ns loop
+    if mine[i]=0 then
+      for j in 1..nm loop if not used[j] and mb[j]<>lastw[i] then mine[i] := j; exit; end if; end loop;
+      if mine[i]=0 then for j in 1..nm loop if not used[j] then mine[i] := j; exit; end if; end loop; end if;
+      if mine[i]>0 then used[mine[i]] := true; end if;
+    end if;
+  end loop;
+  for i in 1..ns loop
+    if mine[i]>0 then insert into assignments(circle_id,username,story_id,final) values (p_circle,mb[mine[i]],st[i],true); n := n+1; end if;
+  end loop;
   return n;
 end $$;
 
@@ -167,15 +216,18 @@ begin
     where a.username=u and a.active and not c.concluded and c.archived_at is null order by a.assigned_at desc limit 1;
   if found then
     select * into cir from circles where id=asg.circle_id;
-    t := json_build_object('story_id',asg.story_id,'done',asg.done,
+    t := json_build_object('story_id',asg.story_id,'done',asg.done,'final',asg.final,
       -- paragraphs this story still gets: members who have neither written in it nor missed their turn in it (the writer included)
       'left',(select count(*) from members mb where mb.circle_id=asg.circle_id and mb.approved and mb.removed_at is null
         and not exists(select 1 from contributions co where co.story_id=asg.story_id and co.author=mb.username)
         and not exists(select 1 from assignments x where x.story_id=asg.story_id and x.username=mb.username and x.missed)),
-      'own',(select body from contributions where story_id=asg.story_id and author=u),
-      'parts',(select coalesce(json_agg(json_build_object('n',r.rn,'body',r.body) order by r.rn),'[]'::json)
-        from (select body, row_number() over(order by created_at) rn, count(*) over() cnt from contributions where story_id=asg.story_id and author<>u) r
-        where r.rn <= cir.visible_first or r.rn > r.cnt - cir.visible_last));
+      'own',(select body from contributions where story_id=asg.story_id and author=u and final=asg.final),
+      -- whoever writes the ending sees the whole story; otherwise only the first and last paragraphs of the others
+      'parts',case when asg.final then (select coalesce(json_agg(json_build_object('n',r.rn,'body',r.body) order by r.rn),'[]'::json)
+          from (select body, row_number() over(order by created_at) rn from contributions where story_id=asg.story_id and not final) r)
+        else (select coalesce(json_agg(json_build_object('n',r.rn,'body',r.body) order by r.rn),'[]'::json)
+          from (select body, row_number() over(order by created_at) rn, count(*) over() cnt from contributions where story_id=asg.story_id and author<>u) r
+          where r.rn <= cir.visible_first or r.rn > r.cnt - cir.visible_last) end);
   else
     select c.* into cir from circles c join members mb on mb.circle_id=c.id where mb.username=u and mb.approved and mb.removed_at is null and not c.concluded and c.archived_at is null order by mb.joined_at desc limit 1;
   end if;
@@ -229,7 +281,7 @@ begin
   if char_length(b) not between 1 and mx then raise exception 'Ein Absatz braucht 1 bis % Zeichen', mx; end if;
   sid := a.story_id;
   if sid is null then insert into stories(circle_id,starter) values (a.circle_id,u) returning id into sid; end if;
-  insert into contributions(story_id,author,body) values (sid,u,b);
+  insert into contributions(story_id,author,body,final) values (sid,u,b,a.final);
   update assignments set done=true, story_id=sid where id=a.id;
 end $$;
 
@@ -244,7 +296,7 @@ begin
   if not found then raise exception 'Es gibt nichts zu ändern'; end if;
   select max_chars into mx from circles where id=a.circle_id;
   if char_length(b) not between 1 and mx then raise exception 'Ein Absatz braucht 1 bis % Zeichen', mx; end if;
-  update contributions set body=b, edited_at=now(), edited_by=u where story_id=a.story_id and author=u;
+  update contributions set body=b, edited_at=now(), edited_by=u where story_id=a.story_id and author=u and final=a.final;
 end $$;
 
 create or replace function run_new_day(p_circle uuid) returns int language plpgsql security definer set search_path=public as $$
@@ -284,6 +336,6 @@ begin
   update circles set concluded=true where id=p_circle;
 end $$;
 
-revoke execute on function do_new_day(uuid), last_slot(time,text), circle_changed() from public, anon, authenticated;
-revoke execute on function is_admin(), tick(), my_state(text), join_circle(text,uuid), approve_member(uuid,text), remove_member(uuid,text), submit_turn(text,text), edit_turn(text,text), run_new_day(uuid), circle_ready(uuid), conclude_circle(uuid), published_stories(), published_story(uuid) from public, anon;
-grant execute on function is_admin(), tick(), my_state(text), join_circle(text,uuid), approve_member(uuid,text), remove_member(uuid,text), submit_turn(text,text), edit_turn(text,text), run_new_day(uuid), circle_ready(uuid), conclude_circle(uuid), published_stories(), published_story(uuid) to authenticated;
+revoke execute on function do_new_day(uuid), pair_up(boolean[],int,int), last_slot(time,text), circle_changed() from public, anon, authenticated;
+revoke execute on function is_admin(), tick(), my_state(text), join_circle(text,uuid), approve_member(uuid,text), remove_member(uuid,text), submit_turn(text,text), edit_turn(text,text), run_new_day(uuid), start_final_round(uuid), circle_ready(uuid), conclude_circle(uuid), published_stories(), published_story(uuid) from public, anon;
+grant execute on function is_admin(), tick(), my_state(text), join_circle(text,uuid), approve_member(uuid,text), remove_member(uuid,text), submit_turn(text,text), edit_turn(text,text), run_new_day(uuid), start_final_round(uuid), circle_ready(uuid), conclude_circle(uuid), published_stories(), published_story(uuid) to authenticated;

@@ -30,6 +30,7 @@ const CIRCLE=[
   ['waiting','Wenn jemand gerade nicht an der Reihe ist','Gerade bist du nicht an der Reihe. Die nächste Geschichte kommt, wenn der nächste Tag beginnt.'],
   ['submitted','Nach dem Schreiben','Dein Absatz ist gespeichert. Du kannst ihn ändern, bis der nächste Tag beginnt.'],
   ['so_far','Über der Geschichte, nach dem Schreiben','Die Geschichte bisher:'],
+  ['final','In der Schlussrunde, über der ganzen Geschichte','Schlussrunde: Lies die ganze Geschichte und schreibe ihr Ende!'],
   ['ending','Wenn die Geschichte bald endet ({n} wird durch die Zahl der restlichen Absätze ersetzt)','Nur noch {n} Absätze bis zum Ende dieser Geschichte – lenke sie langsam auf ihren Schluss zu.'],
   ['last','Beim letzten Absatz einer Geschichte','Das ist der letzte Absatz dieser Geschichte. Bring sie zu einem Ende!'],
   ['next','Nächste Weitergabe ({time} wird ersetzt; nur mit täglicher Uhrzeit)','Die Geschichten werden am {time} weitergegeben.'],
@@ -93,6 +94,7 @@ async function renderUser(){
     if(!t)h+=`<p>${L('waiting')}</p>`;
     else if(t.done)h+=(ctx?`<p>${L('so_far')}</p>`+ctx:'')+`<p>${L('submitted')}</p>`;
     else if(!t.story_id)h+=`<p>${L('start')}</p>`;
+    else if(t.final)h+=`<p class="notice">${L('final')}</p>`+ctx;
     else h+=`<p>${L('continue')}</p>`+ctx+(c.ending_hint&&t.left&&t.left<=c.ending_hint?`<p class="notice">${t.left===1?L('last'):L('ending').replace('{n}',t.left)}</p>`:'');
     if(c.next)h+=`<p class="note">${L('next').replace('{time}',fmt(c.next))}</p>`;
   }
@@ -103,8 +105,8 @@ async function renderUser(){
 async function renderAdmin(){
   await rpc('tick');  // hands out turns for circles whose daily time has passed
   const[a,b]=await Promise.all([
-    sb.from('circles').select('*,members(username,approved,removed_at),stories(id,starter,created_at,title,thumb,published_at,contributions(id,author,body,created_at,edited_at,edited_by))').is('archived_at',null).order('created_at',{ascending:false}),
-    sb.from('assignments').select('story_id,circle_id,username,done,active,missed,seen,assigned_at')]);
+    sb.from('circles').select('*,members(username,approved,removed_at),stories(id,starter,created_at,title,thumb,published_at,contributions(id,author,body,created_at,edited_at,edited_by,final))').is('archived_at',null).order('created_at',{ascending:false}),
+    sb.from('assignments').select('story_id,circle_id,username,done,active,missed,seen,assigned_at,final')]);
   if(a.error)throw a.error;if(b.error)throw b.error;
   $('#site').innerHTML=SITE.map(f=>field(f,site[f[0]])).join('')+'<p class="note">Ein leeres Feld verwendet den grau angezeigten Text.</p><button>Seiteneinstellungen speichern</button>';
   $('#circlelist').innerHTML=a.data.map(c=>{
@@ -118,14 +120,14 @@ async function renderAdmin(){
       const ev=cons.map(x=>x.edited_at&&T(x.edited_at)>T(x.created_at)?{t:x.edited_at,by:x.edited_by||x.author}:{t:x.created_at,by:x.author}).sort((x,y)=>T(x.t)-T(y.t)).at(-1)||{t:s.created_at,by:s.starter};
       const skip=mem.filter(u=>missed(u,s.id)),left=mem.filter(u=>!cons.some(x=>x.author===u)&&!skip.includes(u));
       // whoever has the turn right now comes first, in bold
-      const now=p&&p.username,todo=left.sort((x,y)=>(y===now)-(x===now)).map(u=>u===now?`<strong>${esc(u)}</strong> (ist dran)`:esc(u)).join(', ')||'niemand';
+      const now=p&&p.username,todo=p&&p.final?`<strong>${esc(now)}</strong> (schreibt das Ende)`:left.sort((x,y)=>(y===now)-(x===now)).map(u=>u===now?`<strong>${esc(u)}</strong> (ist dran)`:esc(u)).join(', ')||'niemand';
       // a story is published on its own, once its circle is concluded
       const pub=c.concluded?`<form class="fields pub" data-story="${s.id}"><label>Titel<input name="title" maxlength="120" value="${esc(s.title||'')}"></label><label>Bild${s.thumb?' ersetzen':''}<input name="image" type="file" accept="image/*"></label>`
         +(s.thumb?`<img class="thumb" src="${esc(s.thumb)}" alt=""><label class="check"><input name="noimg" type="checkbox"> Bild entfernen</label>`:'')
         +`<p><button name="do" value="save">Titel und Bild speichern</button> <button name="do" value="${s.published_at?'unpub':'pub'}">${s.published_at?'Veröffentlichung zurücknehmen':'Veröffentlichen'}</button></p></form>`
         :'<p class="note">Veröffentlichen ist möglich, sobald der Kreis abgeschlossen ist.</p>';
       return `<tr><td>${esc(s.starter)}</td><td>${fmt(s.created_at)}</td><td>${cons.length}</td><td>${todo}</td><td>${skip.map(esc).join(', ')||'-'}</td><td>${esc(ev.by)}</td><td>${fmt(ev.t)}</td><td>${s.published_at?'ja'+(s.title?': '+esc(s.title):''):'nein'}</td><td><button class="link" data-copy="${s.id}">Kopieren</button> <button class="link" data-toggle="${s.id}">${o?'Schließen':'Bearbeiten'}</button></td></tr>`
-        +`<tr class="editrow" id="e-${s.id}"${o?'':' hidden'}><td colspan="9">`+pub+cons.map(x=>`<div class="edit"><small><strong>${esc(x.author)}</strong> · geschrieben am ${fmt(x.created_at)}${x.edited_at?` · zuletzt geändert von ${esc(x.edited_by||x.author)} am ${fmt(x.edited_at)}`:''}</small><textarea maxlength="${c.max_chars}" data-id="${x.id}">${esc(x.body)}</textarea><button data-save="${x.id}">Speichern</button></div>`).join('')+'</td></tr>';
+        +`<tr class="editrow" id="e-${s.id}"${o?'':' hidden'}><td colspan="9">`+pub+cons.map(x=>`<div class="edit"><small><strong>${esc(x.author)}</strong>${x.final?' · <strong>Ende</strong>':''} · geschrieben am ${fmt(x.created_at)}${x.edited_at?` · zuletzt geändert von ${esc(x.edited_by||x.author)} am ${fmt(x.edited_at)}`:''}</small><textarea maxlength="${c.max_chars}" data-id="${x.id}">${esc(x.body)}</textarea><button data-save="${x.id}">Speichern</button></div>`).join('')+'</td></tr>';
     }).join('');
     const starting=pend.filter(x=>!x.story_id).map(x=>esc(x.username));
     const news=asg.filter(x=>x.missed&&!x.seen).sort((x,y)=>T(x.assigned_at)-T(y.assigned_at));
@@ -148,7 +150,7 @@ async function renderAdmin(){
       +(gone.length?'. Entfernt: '+gone.map(u=>esc(u)+(c.concluded?'':` <button class="link" data-back="${c.id}" data-user="${u}">wieder aufnehmen</button>`)).join(', '):'')+'</p>'
       +(c.concluded?'':`<p class="note">Die Geschichten werden ${when} weitergegeben. Zuletzt: ${fmt(c.last_distributed_at)}.</p>`)
       +(rows?`<div class="tablewrap"><table><tr><th>Begonnen von</th><th>Begonnen am</th><th>Absätze</th><th>Noch zu schreiben</th><th>Verpasst</th><th>Zuletzt geändert von</th><th>Zuletzt geändert am</th><th>Veröffentlicht</th><th></th></tr>${rows}</table></div>`:'<p class="note">Noch keine Geschichten.</p>')
-      +'<p>'+(!c.concluded?`<button data-newday="${c.id}">Nächsten Tag starten</button> `:'')+(!c.concluded&&full?`<button data-conclude="${c.id}">Kreis abschließen</button> `:'')+`<button class="link" data-del="${c.id}">Kreis löschen</button></p>${form}</article>`;
+      +'<p>'+(!c.concluded?`<button data-newday="${c.id}">Nächsten Tag starten</button> `:'')+(!c.concluded&&full?`<button data-conclude="${c.id}">Kreis abschließen</button> `:'')+((full||c.concluded)&&c.stories.length?`<button data-final="${c.id}">Schlussrunde starten</button> `:'')+`<button class="link" data-del="${c.id}">Kreis löschen</button></p>${form}</article>`;
   }).join('')||'<p>Noch keine Kreise. Erstelle oben einen.</p>';
 }
 
@@ -182,6 +184,11 @@ $('#site').onsubmit=e=>{e.preventDefault();const v=Object.fromEntries(new FormDa
     for(const r of[set.length&&await sb.from('settings').upsert(set),del.length&&await sb.from('settings').delete().in('key',del)])if(r&&r.error)throw r.error;
     await loadSite()})};
 // The settings form of one circle (the forms are re-created on every render, so this listens on the whole admin section).
+// Downloads everything in the database as one file, as a backup for the admin to keep.
+$('#backup').onclick=()=>act(async()=>{const out={saved_at:new Date().toISOString()};
+  for(const[t,o]of[['circles','created_at'],['members','joined_at'],['stories','created_at'],['contributions','created_at'],['assignments','assigned_at'],['settings','key']]){
+    out[t]=[];for(let i=0;;i+=1000){const{data,error}=await sb.from(t).select('*').order(o).range(i,i+999);if(error)throw error;out[t].push(...data);if(data.length<1000)break}}
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(out,null,1)],{type:'application/json'}));a.download='plotweave-sicherung-'+out.saved_at.slice(0,10)+'.json';a.click()});
 $('#done').onclick=e=>{const b=e.target.closest('[data-read],[data-back]');if(!b)return;reading=b.dataset.read||null;
   renderFinished().then(()=>$('#finished').scrollIntoView({behavior:'smooth'})).catch(x=>alert(x.message))};
 // Title, picture and publishing of one story.
@@ -206,6 +213,7 @@ $('#admin').onclick=e=>{const d=e.target.dataset;
   if(d.kick&&confirm(d.user+' aus diesem Kreis entfernen? Schon geschriebene Absätze bleiben in den Geschichten.'))act(()=>rpc('remove_member',{p_circle:d.kick,p_user:d.user}));
   if(d.back)act(async()=>{const{error}=await sb.from('members').update({removed_at:null}).eq('circle_id',d.back).eq('username',d.user);if(error)throw error});
   if(d.seen)act(async()=>{const{error}=await sb.from('assignments').update({seen:true}).eq('circle_id',d.seen).eq('missed',true);if(error)throw error});
+  if(d.final&&confirm('Schlussrunde starten? Jede Geschichte ohne Ende geht noch einmal an jemanden, der ihr Ende schreibt. Offene Züge werden geschlossen, die tägliche Uhrzeit wird ausgeschaltet und ein abgeschlossener Kreis wieder geöffnet.'))act(async()=>{alert(await rpc('start_final_round',{p_circle:d.final})+' Geschichten bekommen jetzt ihr Ende.')});
   if(d.conclude)act(()=>rpc('conclude_circle',{p_circle:d.conclude}));
   if(d.newday&&confirm('Den nächsten Tag für diesen Kreis starten? Wer bis jetzt nicht geschrieben hat, wird übersprungen, und der Absatz von gestern kann nicht mehr geändert werden.'))act(async()=>{alert(await rpc('run_new_day',{p_circle:d.newday})+' Schreibende sind jetzt an der Reihe.')});
   // deleting only archives: the circle disappears everywhere but stays in the database
