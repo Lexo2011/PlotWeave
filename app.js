@@ -94,7 +94,7 @@ async function renderUser(){
     if(!t)h+=`<p>${L('waiting')}</p>`;
     else if(t.done)h+=(ctx?`<p>${L('so_far')}</p>`+ctx:'')+`<p>${L('submitted')}</p>`;
     else if(!t.story_id)h+=`<p>${L('start')}</p>`;
-    else if(t.final)h+=`<p class="notice">${L('final')}</p>`+ctx;
+    else if(t.final)h+=`<p class="final">${L('final')}</p>`+ctx;
     else h+=`<p>${L('continue')}</p>`+ctx+(c.ending_hint&&t.left&&t.left<=c.ending_hint?`<p class="notice">${t.left===1?L('last'):L('ending').replace('{n}',t.left)}</p>`:'');
     if(c.next)h+=`<p class="note">${L('next').replace('{time}',fmt(c.next))}</p>`;
   }
