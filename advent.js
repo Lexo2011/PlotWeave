@@ -85,7 +85,7 @@ async function render(){
 const card=i=>`<button class="card" data-item="${i.id}">${i.thumb?`<img src="${esc(i.thumb)}" alt="">`:`<span class="noimg">${KIND[i.kind]}</span>`}<span>${esc(i.title||KIND[i.kind])}</span>${i.author?`<span class="note">${esc(txt('advent_by').replace('{name}',i.author))}</span>`:''}</button>`;
 
 async function draw(){
-  const c=$('#cal');
+  const c=$('#cal');document.body.classList.toggle('indoor',!!door&&!item);
   if(!door){
     c.innerHTML=cal.start&&cal.days?`<div class="doors">`+cal.doors.map(d=>`<button class="door${d.open?' open':''}" data-door="${d.n}" title="${dm(d.n)}">${d.image?`<img src="${esc(d.image)}" alt="${lab(d.n)}">`:`<b>${lab(d.n)}</b>`}${isAdmin?`<small>${dm(d.n)} · ${d.items}</small>`:''}</button>`).join('')+'</div>'
       :`<p>${esc(txt('advent_soon'))}</p>`;

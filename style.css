@@ -44,7 +44,7 @@ form.inline input{flex:1}
 .fields>:not(label){grid-column:1/-1;justify-self:start}
 .pub{margin:.2rem 0 1rem;padding-bottom:1rem;border-bottom:1px solid var(--line)}
 .thumb{max-width:9rem;max-height:6rem;border-radius:6px}
-#done:has(.card),.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(11rem,1fr));gap:1rem}
+#done:has(.card){display:grid;grid-template-columns:repeat(auto-fill,minmax(11rem,1fr));gap:1rem}
 .card{display:grid;gap:.5rem;align-content:start;padding:.6rem;text-align:left;font-weight:600;background:#fff;color:inherit;border:1px solid var(--line);border-radius:10px}
 .card img,.card .noimg{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;background:linear-gradient(135deg,var(--paper),var(--line))}
 .card:hover{filter:none;border-color:var(--mark);box-shadow:0 6px 16px -8px rgb(27 33 64/.4)}
@@ -82,7 +82,9 @@ th,td{text-align:left;padding:.4rem .6rem;border-bottom:1px solid var(--line);ve
 #pop{max-width:min(22rem,calc(100% - 2rem));padding:1.6rem 1.8rem;text-align:center;color:var(--ink);background:#fff;border:0;border-radius:14px;box-shadow:0 20px 50px -15px rgb(27 33 64/.5)}
 #pop::backdrop{background:rgb(27 33 64/.35)}
 #pop p{margin:0 0 1.2rem;font-size:1.15rem}
-.cards{margin:1rem 0}
+/* the items behind a door: one below the other on a phone, all side by side on a bigger screen, sharing its width */
+.cards{display:grid;gap:1rem;margin:1rem 0}
+@media (min-width:760px){.cards{grid-auto-flow:column;grid-auto-columns:minmax(0,1fr)}.advent.indoor main{max-width:72rem}}
 .card .noimg{display:grid;place-content:center;font-weight:400;opacity:.7}
 .card .note{font-weight:400}
 /* a long title without spaces (such as a file name) breaks inside the card instead of widening it and its picture */
