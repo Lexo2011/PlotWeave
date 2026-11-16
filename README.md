@@ -50,4 +50,5 @@ Only what is needed to connect and log in stays in `config.js`:
 - "Autorennamen" maps usernames to author names. A copied story gets the author name of whoever started it; the admin can change it. Usernames are never shown in the calendar.
 - Pictures and videos are uploaded to the private Supabase storage bucket `advent` (created by `setup.sql`). The Supabase plan limits the file size (free plan: 50 MB per file, 1 GB in total).
 - Editing: log in as admin on the main page, then open `advent.html` (link "Adventskalender bearbeiten" in the admin panel). The admin sees behind every door.
+- Comments: under every item, everyone with the site password can comment and answer comments, under their username (the one from the main page, or typed once on the calendar page). No likes. Writer and admin can change or delete a comment; deleting only sets `deleted_at`, a deleted comment with answers stays as a placeholder, and the admin can bring it back. Comments can be read and written only once the item's door is open.
 - All calendar texts are in `TEXTS` in `advent.js` and are changed under "Kalendereinstellungen".

@@ -186,7 +186,7 @@ $('#site').onsubmit=e=>{e.preventDefault();const v=Object.fromEntries(new FormDa
 // The settings form of one circle (the forms are re-created on every render, so this listens on the whole admin section).
 // Downloads everything in the database as one file, as a backup for the admin to keep.
 $('#backup').onclick=()=>act(async()=>{const out={saved_at:new Date().toISOString()};
-  for(const[t,o]of[['circles','created_at'],['members','joined_at'],['stories','created_at'],['contributions','created_at'],['assignments','assigned_at'],['settings','key'],['authors','username'],['advent_items','created_at'],['advent_doors','door']]){
+  for(const[t,o]of[['circles','created_at'],['members','joined_at'],['stories','created_at'],['contributions','created_at'],['assignments','assigned_at'],['settings','key'],['authors','username'],['advent_items','created_at'],['advent_doors','door'],['advent_comments','created_at']]){
     out[t]=[];for(let i=0;;i+=1000){const{data,error}=await sb.from(t).select('*').order(o).range(i,i+999);if(error)throw error;out[t].push(...data);if(data.length<1000)break}}
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(out,null,1)],{type:'application/json'}));a.download='plotweave-sicherung-'+out.saved_at.slice(0,10)+'.json';a.click()});
 $('#done').onclick=e=>{const b=e.target.closest('[data-read],[data-back]');if(!b)return;reading=b.dataset.read||null;

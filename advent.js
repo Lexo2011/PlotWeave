@@ -1,5 +1,6 @@
 // The advent calendar: its own page behind the site password. The admin (logged in on index.html) edits it right here.
 const cfg=window.CONFIG||{},$=s=>document.querySelector(s);
+const ADMIN=(cfg.ADMIN_USERNAME||'admin').toLowerCase();
 const ADMIN_EMAIL=cfg.ADMIN_EMAIL||'admin@example.com',SHARED=cfg.SHARED_EMAIL||'shared@example.com';
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 // Texts the admin can change (Kalendereinstellungen): [key, label in the form, default text]. Stored in the settings table.
@@ -16,6 +17,21 @@ const TEXTS=[
   ['advent_by','Autorenzeile ({name} wird ersetzt)','von {name}'],
   ['advent_back','Link vom Türchen zurück zum Kalender','Zurück zum Kalender'],
   ['advent_back_door','Link von einem Inhalt zurück zum Türchen','Zurück zum Türchen'],
+  ['advent_comments','Überschrift der Kommentare','Kommentare'],
+  ['advent_no_comments','Wenn es noch keine Kommentare gibt','Noch keine Kommentare. Schreib den ersten!'],
+  ['advent_comment_label','Beschriftung des Kommentarfelds','Dein Kommentar'],
+  ['advent_comment_send','Knopf zum Veröffentlichen','Kommentar veröffentlichen'],
+  ['advent_reply','Link zum Antworten','Antworten'],
+  ['advent_reply_send','Knopf unter einer Antwort','Antwort veröffentlichen'],
+  ['advent_name_label','Namensfeld, wenn noch kein Benutzername bekannt ist','Dein Benutzername'],
+  ['advent_as','Über dem Kommentarfeld ({name} wird ersetzt)','Du schreibst als {name}.'],
+  ['advent_edit','Link zum Bearbeiten eines Kommentars','Bearbeiten'],
+  ['advent_delete','Link zum Löschen eines Kommentars','Löschen'],
+  ['advent_delete_ask','Rückfrage vor dem Löschen','Diesen Kommentar löschen?'],
+  ['advent_save','Knopf zum Speichern eines geänderten Kommentars','Speichern'],
+  ['advent_cancel','Link zum Abbrechen','Abbrechen'],
+  ['advent_edited','Hinweis bei geänderten Kommentaren','bearbeitet'],
+  ['advent_deleted','Platzhalter für einen gelöschten Kommentar, auf den geantwortet wurde','Dieser Kommentar wurde gelöscht.'],
   ['gate_label','Beschriftung des Passwortfelds (gilt auch auf der Hauptseite)','Passwort'],
   ['gate_button','Knopf unter dem Passwortfeld (gilt auch auf der Hauptseite)','Eintreten']];
 const KIND={story:'Geschichte',image:'Bild',video:'Video'};
@@ -30,7 +46,7 @@ if(!(cfg.SUPABASE_URL&&cfg.SUPABASE_ANON_KEY&&window.supabase)){
 const mk=o=>supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY,o);
 // the same two sessions as on index.html
 const siteC=mk(),adminC=mk({auth:{storageKey:'plotweave-admin'}});let sb=siteC;
-let isAdmin=false,cal=null,door=null,item=null,items=[],stories=[],used=[],names={};
+let me=null,replyTo=null,editId=null,comments=[],isAdmin=false,cal=null,door=null,item=null,items=[],stories=[],used=[],names={};
 const rpc=async(f,a)=>{const{data,error}=await sb.rpc(f,a);if(error)throw error;return data};
 const q=async p=>{const{data,error}=await p;if(error)throw error;return data};
 const show=(id,on)=>{$('#'+id).hidden=!on};
@@ -103,7 +119,8 @@ async function draw(){
       media=i.kind==='video'?`<video class="cover fit" controls playsinline preload="metadata"${i.thumb?` poster="${esc(i.thumb)}"`:''} src="${esc(data.signedUrl)}"></video>`:`<img class="cover fit" src="${esc(data.signedUrl)}" alt="">`}
     else if(i.thumb)media=`<img class="cover" src="${esc(i.thumb)}" alt="">`;
     c.innerHTML=`<button class="link" data-up>← ${esc(txt('advent_back_door'))}</button><h2>${esc(i.title||KIND[i.kind])}</h2>`+(i.author?`<p class="note">${esc(txt('advent_by').replace('{name}',i.author))}</p>`:'')
-      +media+(i.body||'').split(/\n\s*\n/).filter(p=>p.trim()).map(p=>`<p class="desc">${esc(p.trim())}</p>`).join('');
+      +media+(i.body||'').split(/\n\s*\n/).filter(p=>p.trim()).map(p=>`<p class="desc">${esc(p.trim())}</p>`).join('')+'<section id="comments"></section>';
+    replyTo=editId=null;await loadComments();
     return;
   }
   c.innerHTML=`<button class="link" data-home>← ${esc(txt('advent_back'))}</button>`+head
@@ -162,6 +179,42 @@ const closed=n=>{$('#popmsg').textContent=txt('advent_closed').replace('{date}',
 // an opened picture or video is brought to the middle of the screen once it is loaded, everything else to the top
 const nav=()=>act(async()=>{}).then(()=>{const m=$('.cover.fit');if(!m)return scrollTo({top:$('#cal').offsetTop-16,behavior:'smooth'});
     const mid=()=>m.scrollIntoView({block:'center',behavior:'smooth'});m.complete||m.readyState>0?mid():m.addEventListener(m.tagName==='VIDEO'?'loadedmetadata':'load',mid,{once:true})});
+// Comments under an item. Writers use the username they log in with on the main page (or type it here once); the admin writes as the admin.
+// Writer and admin can change or delete a comment. A deleted one stays as a placeholder while it has answers; the admin still sees it and can bring it back.
+const fmt=d=>new Date(d).toLocaleString('de-DE',{dateStyle:'medium',timeStyle:'short'});
+async function loadComments(){comments=await rpc('advent_comments',{p_item:item});drawComments()}
+function drawComments(){const box=$('#comments');if(!box)return;
+  me=isAdmin?ADMIN:localStorage.getItem('author');if(me===ADMIN&&!isAdmin)me=null;
+  const form=p=>`<form class="cform" data-parent="${p||''}">${me?`<p class="note">${esc(txt('advent_as').replace('{name}',me))}</p>`:`<label>${esc(txt('advent_name_label'))}<input name="name" required pattern="[A-Za-z0-9_]{2,24}" title="2 bis 24 Buchstaben, Ziffern oder Unterstriche" autocomplete="username"></label>`}`
+    +`<label>${esc(txt('advent_comment_label'))}<textarea name="body" rows="${p?2:3}" maxlength="2000" required></textarea></label><button>${esc(txt(p?'advent_reply_send':'advent_comment_send'))}</button></form>`;
+  const kids=p=>comments.filter(c=>(c.parent||null)===p),live=c=>!c.deleted||isAdmin||kids(c.id).some(live);
+  const links=c=>[!c.deleted&&`<button class="link" data-reply="${c.id}">${esc(txt('advent_reply'))}</button>`,
+    !c.deleted&&(isAdmin||c.author===me)&&`<button class="link" data-edit-c="${c.id}">${esc(txt('advent_edit'))}</button> <button class="link" data-del-c="${c.id}">${esc(txt('advent_delete'))}</button>`,
+    c.deleted&&isAdmin&&`<button class="link" data-undel="${c.id}">Wiederherstellen</button>`].filter(Boolean).join(' ');
+  // answers are shown under what they answer, indented (deeper levels stay at the same indent so they still fit on a phone)
+  const tree=(p,depth)=>kids(p).filter(live).map(c=>`<div class="comment${c.deleted?' gone':''}${depth?' reply':''}${depth>2?' flat':''}" id="c-${c.id}">`
+    +(c.deleted&&!isAdmin?`<p class="note">${esc(txt('advent_deleted'))}</p>`
+      :`<p class="cmeta"><strong>${esc(c.author)}</strong>${c.admin?' <span class="badge">Admin</span>':''} · <span class="note">${fmt(c.at)}${c.edited?' · '+esc(txt('advent_edited')):''}</span>${c.deleted?' · <em>gelöscht</em>':''}</p>`
+      +(editId===c.id?`<form class="cform" data-edit="${c.id}"><textarea name="body" rows="3" maxlength="2000" required>${esc(c.body)}</textarea><p><button>${esc(txt('advent_save'))}</button> <button type="button" class="link" data-cancel>${esc(txt('advent_cancel'))}</button></p></form>`
+        :`<p class="desc">${esc(c.body)}</p><p>${links(c)}</p>`))
+    +(replyTo===c.id?form(c.id):'')+tree(c.id,depth+1)+'</div>').join('');
+  const n=comments.filter(c=>!c.deleted).length;
+  box.innerHTML=`<h3>${esc(txt('advent_comments'))}${n?` <span class="note">(${n})</span>`:''}</h3>`+(tree(null,0)||`<p class="note">${esc(txt('advent_no_comments'))}</p>`)+form(null);
+}
+const change=(id,body)=>rpc('change_advent_comment',{p_user:me,p_id:id,p_body:body}).then(()=>{editId=null;return loadComments()}).catch(x=>alert(x.message));
+$('#cal').addEventListener('click',e=>{const d=e.target.dataset,focus=s=>{const t=document.getElementById(s)?.querySelector('.cform textarea');if(t)t.focus()};
+  if(d.reply){replyTo=replyTo===d.reply?null:d.reply;editId=null;drawComments();focus('c-'+d.reply)}
+  if(d.editC){editId=d.editC;replyTo=null;drawComments();focus('c-'+d.editC)}
+  if('cancel' in d){editId=null;drawComments()}
+  if(d.delC&&confirm(txt('advent_delete_ask')))change(d.delC,null);
+  if(d.undel)q(sb.from('advent_comments').update({deleted_at:null}).eq('id',d.undel)).then(loadComments).catch(x=>alert(x.message))});
+$('#cal').addEventListener('submit',e=>{const f=e.target;if(!f.matches('.cform'))return;e.preventDefault();e.stopImmediatePropagation();
+  if(f.dataset.edit)return change(f.dataset.edit,f.elements.body.value);
+  const n=f.elements.name&&f.elements.name.value.trim().toLowerCase();
+  if(n===ADMIN)return alert('Dieser Name ist für den Admin reserviert.');
+  const b=f.querySelector('button');b.disabled=true;
+  rpc('add_advent_comment',{p_user:n||me,p_item:item,p_parent:f.dataset.parent||null,p_body:f.elements.body.value})
+    .then(async()=>{if(n)localStorage.setItem('author',n);replyTo=null;await loadComments()}).catch(x=>{b.disabled=false;alert(x.message)})},true);
 // the closed-door message: closes with its button, Esc or a click beside it
 $('#pop').onclick=e=>{if(e.target===e.currentTarget||e.target.matches('button'))$('#pop').close()};
 $('#cal').addEventListener('change',e=>{if(e.target.name!=='kind'||!e.target.form.matches('#add'))return;const k=e.target.value,f=e.target.form;

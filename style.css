@@ -118,3 +118,15 @@ html:has(body.advent){background:radial-gradient(1.5px 1.5px at 20% 30%,rgb(255 
 .door.open:nth-child(3n+3)::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none' fill='none' stroke='%23f0c35a' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 3C34 5 70 2 98 6M96 4C98 30 95 72 98 96M96 98C70 95 30 99 2 96M4 98C2 70 5 30 2 5' stroke-width='2.2' vector-effect='non-scaling-stroke'/%3E%3Cpath d='M8 5C40 3 66 6 93 3M5 93C4 60 6 36 4 8' stroke-width='1.2100000000000002' opacity='.55' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E")}
 .door.open,.advent .door.open{box-shadow:0 8px 18px -8px rgb(0 0 0/.7)}
 .door:nth-child(odd)::before{transform:rotate(-1deg)}.door:nth-child(even)::before{transform:rotate(.8deg)}
+/* comments under an item */
+#comments{margin-top:2.5rem;padding:1.2rem 1.4rem;color:var(--ink);background:rgb(255 255 255/.92);border-radius:14px}
+#comments h3{margin-top:0}
+.comment{padding:.6rem 0 0;border-top:1px solid var(--line)}
+.comment p{margin:.2rem 0}
+.comment.reply{margin-left:1.2rem;padding-left:.8rem;border-top:0;border-left:2px solid var(--line)}
+.comment.reply.flat{margin-left:0}
+.comment.gone>.desc,.comment.gone>.cmeta{opacity:.5}
+.cmeta{font-size:.9rem}
+.badge{font-size:.72rem;padding:.05rem .4rem;border-radius:4px;background:var(--mark);color:var(--ink)}
+.cform{display:grid;gap:.5rem;margin:.8rem 0 1rem}
+.cform label{display:grid;gap:.2rem;font-size:.9rem}

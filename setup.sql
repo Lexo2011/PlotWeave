@@ -18,6 +18,11 @@ create table if not exists advent_items(id uuid primary key default gen_random_u
   file text,    -- picture or video: name of the file in the storage bucket "advent"
   story_id uuid references stories on delete set null, created_at timestamptz default now());
 create table if not exists advent_doors(door int primary key, image text);  -- the picture on the front of a door, as a data: URL
+-- Comments under the items, and answers to them (parent_id). Writer and admin can change or delete one; deleting only sets deleted_at.
+create table if not exists advent_comments(id uuid primary key default gen_random_uuid(), item_id uuid references advent_items on delete set null,
+  parent_id uuid references advent_comments on delete set null, author text not null, body text not null check (char_length(body) between 1 and 2000),
+  by_admin boolean not null default false, created_at timestamptz default now(), edited_at timestamptz, deleted_at timestamptz);
+create index if not exists advent_comments_item on advent_comments(item_id);
 alter table contributions add column if not exists edited_by text;
 alter table assignments add column if not exists active boolean default true;  -- false once a new day has started
 alter table assignments add column if not exists missed boolean default false; -- the writer did not write before the next day started
@@ -65,7 +70,7 @@ insert into assignments(circle_id,username) select m.circle_id,m.username from m
   where c.last_distributed_at is null and not c.concluded and not exists(select 1 from assignments a where a.circle_id=m.circle_id and a.username=m.username);
 
 do $$ declare t text; begin
-  foreach t in array array['circles','members','stories','contributions','assignments','settings','authors','advent_items','advent_doors'] loop
+  foreach t in array array['circles','members','stories','contributions','assignments','settings','authors','advent_items','advent_doors','advent_comments'] loop
     execute format('alter table %I enable row level security', t);
     execute format('drop policy if exists admin_all on %I', t);
     execute format('create policy admin_all on %I for all to authenticated using (is_admin()) with check (is_admin())', t);
@@ -374,8 +379,38 @@ drop policy if exists advent_read on storage.objects;
 create policy advent_read on storage.objects for select to authenticated using (bucket_id='advent' and advent_file_open(name));
 
 revoke execute on function advent_due(int), advent_open(int) from public, anon, authenticated;
-revoke execute on function advent(), advent_door(int), advent_file_open(text) from public, anon;
-grant execute on function advent(), advent_door(int), advent_file_open(text) to authenticated;
+-- Comments: readable and writable once the item's door is open. Of a deleted comment others get only its place in the thread (for its answers);
+-- the admin sees everything.
+create or replace function advent_comments(p_item uuid) returns json language sql stable security definer set search_path=public as $$
+  select coalesce(json_agg(json_build_object('id',c.id,'parent',c.parent_id,'admin',c.by_admin,'at',c.created_at,'edited',c.edited_at,'deleted',c.deleted_at is not null,
+    'author',case when c.deleted_at is null or is_admin() then c.author end,'body',case when c.deleted_at is null or is_admin() then c.body end) order by c.created_at),'[]'::json)
+  from advent_comments c join advent_items i on i.id=c.item_id
+  where c.item_id=p_item and auth.uid() is not null and advent_open(i.door) $$;
+
+create or replace function add_advent_comment(p_user text, p_item uuid, p_parent uuid, p_body text) returns void language plpgsql security definer set search_path=public as $$
+declare u text := lower(trim(p_user)); b text := trim(p_body);
+begin
+  if auth.uid() is null or u !~ '^[a-z0-9_]{2,24}$' then raise exception 'Bitte gib einen gültigen Benutzernamen ein (2 bis 24 Buchstaben, Ziffern oder Unterstriche).'; end if;
+  if char_length(b) not between 1 and 2000 then raise exception 'Ein Kommentar hat 1 bis 2000 Zeichen.'; end if;
+  if not exists(select 1 from advent_items i where i.id=p_item and advent_open(i.door)) then raise exception 'Dieses Türchen ist noch geschlossen.'; end if;
+  if p_parent is not null and not exists(select 1 from advent_comments where id=p_parent and item_id=p_item and deleted_at is null) then raise exception 'Diesen Kommentar gibt es nicht mehr.'; end if;
+  insert into advent_comments(item_id,parent_id,author,body,by_admin) values(p_item,p_parent,u,b,is_admin());
+end $$;
+
+-- Change (p_body) or delete (p_body null) a comment: whoever wrote it, or the admin. Like everywhere on the site, the writer is known by their username.
+create or replace function change_advent_comment(p_user text, p_id uuid, p_body text) returns void language plpgsql security definer set search_path=public as $$
+declare c advent_comments; b text := trim(p_body);
+begin
+  select * into c from advent_comments where id=p_id;
+  if auth.uid() is null or not found or not (is_admin() or (c.deleted_at is null and c.author=lower(trim(p_user))
+      and exists(select 1 from advent_items i where i.id=c.item_id and advent_open(i.door)))) then raise exception 'Diesen Kommentar kannst du nicht ändern.'; end if;
+  if p_body is null then update advent_comments set deleted_at=now() where id=p_id; return; end if;
+  if char_length(b) not between 1 and 2000 then raise exception 'Ein Kommentar hat 1 bis 2000 Zeichen.'; end if;
+  update advent_comments set body=b, edited_at=now() where id=p_id;
+end $$;
+
+revoke execute on function advent(), advent_door(int), advent_file_open(text), advent_comments(uuid), add_advent_comment(text,uuid,uuid,text), change_advent_comment(text,uuid,text) from public, anon;
+grant execute on function advent(), advent_door(int), advent_file_open(text), advent_comments(uuid), add_advent_comment(text,uuid,uuid,text), change_advent_comment(text,uuid,text) to authenticated;
 revoke execute on function do_new_day(uuid), pair_up(boolean[],int,int), last_slot(time,text), circle_changed() from public, anon, authenticated;
 revoke execute on function is_admin(), tick(), my_state(text), join_circle(text,uuid), approve_member(uuid,text), remove_member(uuid,text), submit_turn(text,text), edit_turn(text,text), run_new_day(uuid), start_final_round(uuid), circle_ready(uuid), conclude_circle(uuid), published_stories(), published_story(uuid) from public, anon;
 grant execute on function is_admin(), tick(), my_state(text), join_circle(text,uuid), approve_member(uuid,text), remove_member(uuid,text), submit_turn(text,text), edit_turn(text,text), run_new_day(uuid), start_final_round(uuid), circle_ready(uuid), conclude_circle(uuid), published_stories(), published_story(uuid) to authenticated;

@@ -23,4 +23,5 @@ A German-language collaborative story site: writers in a "circle" each start a s
 - Layout follows the user's sketch: centred title, home link top left, four doors per row, one picture per door (`advent_doors`), numbers counting down.
 - Items behind a door (`advent_items`) are stories, pictures and videos. Story items are freely editable copies; files are in the private storage bucket `advent`.
 - The calendar is the one place where an author is shown: a free text field, prefilled with the author name (`authors` table) of whoever started the story. Usernames and who wrote which paragraph stay hidden.
+- Comments with answers under every item (`advent_comments`), shown with the writer's username (the user asked for that). No likes/dislikes. Writer and admin can edit and delete; deleting is soft (`deleted_at`). The writer is identified only by the username they type, as everywhere on the site.
 - The admin edits the calendar on `advent.html` itself, using the admin session from `index.html`.
