@@ -85,6 +85,8 @@ th,td{text-align:left;padding:.4rem .6rem;border-bottom:1px solid var(--line);ve
 .cards{margin:1rem 0}
 .card .noimg{display:grid;place-content:center;font-weight:400;opacity:.7}
 .card .note{font-weight:400}
+/* a long title without spaces (such as a file name) breaks inside the card instead of widening it and its picture */
+.cards .card{grid-template-columns:minmax(0,1fr);min-width:0;overflow-wrap:anywhere}
 video.cover{width:100%;background:#000}
 /* an opened picture or video uses the whole screen: as wide as the window allows (beyond the text column) and never taller than it */
 .advent{overflow-x:clip}
