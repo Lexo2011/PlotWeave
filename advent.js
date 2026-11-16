@@ -75,9 +75,12 @@ async function render(){
   if(isAdmin&&!await rpc('is_admin'))alert(`Die Datenbank erkennt dich nicht als Admin, darum kann nichts gespeichert werden. Melde dich auf der Hauptseite ab und wieder als Admin an. (Angemeldet: ${y.data.session.user.email})`);
   cal=await rpc('advent');
   $('#begin').textContent=cal.start&&cal.days?txt('advent_begin').replace('{date}',dm(1,{day:'numeric',month:'numeric'})):'';
-  if(door&&!cal.doors.some(d=>d.n===door&&(d.open||isAdmin)))door=null;
+  // the address says what is open (#28 = the door showing 28, #28/<id> = one item behind it), so links, back and forward work
+  const[h,id]=decodeURIComponent(location.hash.slice(1)).split('/'),k=parseInt(h),n=site.advent_countdown==='0'?k:cal.days-k+1;
+  door=k>0&&n>=1&&n<=cal.days?n:null;item=door&&id||null;
+  if(door&&!cal.doors.some(d=>d.n===door&&(d.open||isAdmin))){closed(door);door=item=null;history.replaceState(null,'',location.pathname+location.search)}
   items=door?await rpc('advent_door',{p_door:door}):[];
-  if(!items.some(i=>i.id===item))item=null;
+  if(item&&!items.some(i=>i.id===item)){item=null;history.replaceState(null,'','#'+lab(door))}
   if(isAdmin)await renderTools();
   await draw();
 }
@@ -150,11 +153,15 @@ $('#cal').onclick=e=>{const b=e.target.closest('[data-door],[data-item],[data-ho
   if(d.del){const i=items.find(x=>x.id===d.del);
     if(confirm('Diesen Inhalt aus dem Kalender löschen? Das lässt sich nicht rückgängig machen. Die ursprüngliche Geschichte im Kreis bleibt erhalten.'))act(async()=>{await q(sb.from('advent_items').delete().eq('id',i.id));if(i.file)await bucket().remove([i.file])});
     return}
-  if(d.door){const x=cal.doors.find(x=>x.n===+d.door);if(x.open||isAdmin)door=x.n;else{$('#popmsg').textContent=txt('advent_closed').replace('{date}',dm(x.n,{day:'numeric',month:'long'}));$('#pop').showModal();return}}
-  if(d.item)item=d.item;if('up' in d)item=null;if('home' in d)door=item=null;
-  // an opened picture or video is brought to the middle of the screen once it is loaded, everything else to the top
-  act(async()=>{}).then(()=>{const m=$('.cover.fit');if(!m)return scrollTo({top:$('#cal').offsetTop-16,behavior:'smooth'});
-    const go=()=>m.scrollIntoView({block:'center',behavior:'smooth'});m.complete||m.readyState>0?go():m.addEventListener(m.tagName==='VIDEO'?'loadedmetadata':'load',go,{once:true})})};
+  if(d.door){const x=cal.doors.find(x=>x.n===+d.door);if(x.open||isAdmin)go(lab(x.n));else closed(x.n)}
+  if(d.item)go(lab(door)+'/'+d.item);if('up' in d)go(lab(door));if('home' in d)go('')};
+// every step is a new entry in the browser history; render() reads the address
+const go=h=>{if(h)location.hash=h;else{history.pushState(null,'',location.pathname+location.search);nav()}};
+addEventListener('hashchange',()=>nav());
+const closed=n=>{$('#popmsg').textContent=txt('advent_closed').replace('{date}',dm(n,{day:'numeric',month:'long'}));$('#pop').showModal()};
+// an opened picture or video is brought to the middle of the screen once it is loaded, everything else to the top
+const nav=()=>act(async()=>{}).then(()=>{const m=$('.cover.fit');if(!m)return scrollTo({top:$('#cal').offsetTop-16,behavior:'smooth'});
+    const mid=()=>m.scrollIntoView({block:'center',behavior:'smooth'});m.complete||m.readyState>0?mid():m.addEventListener(m.tagName==='VIDEO'?'loadedmetadata':'load',mid,{once:true})});
 // the closed-door message: closes with its button, Esc or a click beside it
 $('#pop').onclick=e=>{if(e.target===e.currentTarget||e.target.matches('button'))$('#pop').close()};
 $('#cal').addEventListener('change',e=>{if(e.target.name!=='kind'||!e.target.form.matches('#add'))return;const k=e.target.value,f=e.target.form;
