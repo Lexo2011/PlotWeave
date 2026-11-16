@@ -97,7 +97,7 @@ async function draw(){
     // files come from the private bucket through a link that works for an hour
     let media='';
     if(i.file){const{data,error}=await bucket().createSignedUrl(i.file,3600);if(error)throw error;
-      media=i.kind==='video'?`<video class="cover" controls playsinline preload="metadata"${i.thumb?` poster="${esc(i.thumb)}"`:''} src="${esc(data.signedUrl)}"></video>`:`<img class="cover" src="${esc(data.signedUrl)}" alt="">`}
+      media=i.kind==='video'?`<video class="cover fit" controls playsinline preload="metadata"${i.thumb?` poster="${esc(i.thumb)}"`:''} src="${esc(data.signedUrl)}"></video>`:`<img class="cover fit" src="${esc(data.signedUrl)}" alt="">`}
     else if(i.thumb)media=`<img class="cover" src="${esc(i.thumb)}" alt="">`;
     c.innerHTML=`<button class="link" data-up>← ${esc(txt('advent_back_door'))}</button><h2>${esc(i.title||KIND[i.kind])}</h2>`+(i.author?`<p class="note">${esc(txt('advent_by').replace('{name}',i.author))}</p>`:'')
       +media+(i.body||'').split(/\n\s*\n/).filter(p=>p.trim()).map(p=>`<p class="desc">${esc(p.trim())}</p>`).join('');
@@ -152,7 +152,9 @@ $('#cal').onclick=e=>{const b=e.target.closest('[data-door],[data-item],[data-ho
     return}
   if(d.door){const x=cal.doors.find(x=>x.n===+d.door);if(x.open||isAdmin)door=x.n;else{$('#popmsg').textContent=txt('advent_closed').replace('{date}',dm(x.n,{day:'numeric',month:'long'}));$('#pop').showModal();return}}
   if(d.item)item=d.item;if('up' in d)item=null;if('home' in d)door=item=null;
-  act(async()=>{}).then(()=>scrollTo({top:$('#cal').offsetTop-16,behavior:'smooth'}))};
+  // an opened picture or video is brought to the middle of the screen once it is loaded, everything else to the top
+  act(async()=>{}).then(()=>{const m=$('.cover.fit');if(!m)return scrollTo({top:$('#cal').offsetTop-16,behavior:'smooth'});
+    const go=()=>m.scrollIntoView({block:'center',behavior:'smooth'});m.complete||m.readyState>0?go():m.addEventListener(m.tagName==='VIDEO'?'loadedmetadata':'load',go,{once:true})})};
 // the closed-door message: closes with its button, Esc or a click beside it
 $('#pop').onclick=e=>{if(e.target===e.currentTarget||e.target.matches('button'))$('#pop').close()};
 $('#cal').addEventListener('change',e=>{if(e.target.name!=='kind'||!e.target.form.matches('#add'))return;const k=e.target.value,f=e.target.form;
