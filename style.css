@@ -84,13 +84,13 @@ th,td{text-align:left;padding:.4rem .6rem;border-bottom:1px solid var(--line);ve
 #pop p{margin:0 0 1.2rem;font-size:1.15rem}
 /* the items behind a door: one below the other on a phone, all side by side on a bigger screen, sharing its width */
 .cards{display:grid;gap:1rem;margin:1rem 0}
-@media (min-width:760px){.cards{grid-auto-flow:column;grid-auto-columns:minmax(0,1fr)}.advent.indoor main{max-width:72rem}}
+@media (min-width:760px){.cards{grid-auto-flow:column;grid-auto-columns:minmax(0,1fr)}.advent.indoor main{max-width:none}}
 .card .noimg{display:grid;place-content:center;font-weight:400;opacity:.7}
 .card .note{font-weight:400}
 /* a long title without spaces (such as a file name) breaks inside the card instead of widening it and its picture */
 .cards .card{grid-template-columns:minmax(0,1fr);min-width:0;overflow-wrap:anywhere}
 video.cover{width:100%;background:#000}
-/* an opened picture or video uses the whole screen: as wide as the window allows (beyond the text column) and never taller than it */
+/* an opened picture or video fills the screen (also small pictures are enlarged), keeping its proportions, centred */
 .advent{overflow-x:clip}
-.cover.fit{position:relative;left:50%;transform:translateX(-50%);width:auto;max-width:calc(100vw - 1.5rem);max-height:calc(100svh - 1.5rem);border-radius:8px}
-video.cover.fit{width:calc(100vw - 1.5rem);max-width:min(calc(100vw - 1.5rem),calc((100svh - 1.5rem)*16/9))}
+.cover.fit{position:relative;left:50%;transform:translateX(-50%);width:calc(100vw - 1rem);height:calc(100svh - 1rem);max-width:none;max-height:none;object-fit:contain;border-radius:0}
+video.cover.fit{background:none}
