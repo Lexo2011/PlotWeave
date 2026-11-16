@@ -79,7 +79,9 @@ th,td{text-align:left;padding:.4rem .6rem;border-bottom:1px solid var(--line);ve
 .door.open{box-shadow:0 0 0 3px var(--mark),0 8px 18px -8px rgb(27 33 64/.5)}
 .door.open b{opacity:1}
 .door.open:hover{transform:translateY(-3px) scale(1.03)}
-#msg{text-align:center;min-height:1.6em}
+#pop{max-width:min(22rem,calc(100% - 2rem));padding:1.6rem 1.8rem;text-align:center;color:var(--ink);background:#fff;border:0;border-radius:14px;box-shadow:0 20px 50px -15px rgb(27 33 64/.5)}
+#pop::backdrop{background:rgb(27 33 64/.35)}
+#pop p{margin:0 0 1.2rem;font-size:1.15rem}
 .cards{margin:1rem 0}
 .card .noimg{display:grid;place-content:center;font-weight:400;opacity:.7}
 .card .note{font-weight:400}

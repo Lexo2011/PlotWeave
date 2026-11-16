@@ -10,6 +10,7 @@ const TEXTS=[
   ['advent_begin','Zeile über den Türchen ({date} wird ersetzt)','Beginn: {date}'],
   ['advent_soon','Solange der Kalender noch nicht eingerichtet ist','Der Kalender ist noch nicht fertig. Schau bald wieder vorbei.'],
   ['advent_closed','Beim Klick auf ein geschlossenes Türchen ({date} wird ersetzt)','Dieses Türchen öffnet sich am {date}.'],
+  ['advent_ok','Knopf, der die Meldung zum geschlossenen Türchen schließt','OK'],
   ['advent_door','Überschrift eines Türchens ({n} wird ersetzt)','Türchen {n}'],
   ['advent_empty','Wenn hinter einem Türchen nichts ist','Hinter diesem Türchen ist noch nichts.'],
   ['advent_by','Autorenzeile ({name} wird ersetzt)','von {name}'],
@@ -29,7 +30,7 @@ if(!(cfg.SUPABASE_URL&&cfg.SUPABASE_ANON_KEY&&window.supabase)){
 const mk=o=>supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY,o);
 // the same two sessions as on index.html
 const siteC=mk(),adminC=mk({auth:{storageKey:'plotweave-admin'}});let sb=siteC;
-let isAdmin=false,cal=null,door=null,item=null,items=[],msg='',stories=[],used=[],names={};
+let isAdmin=false,cal=null,door=null,item=null,items=[],stories=[],used=[],names={};
 const rpc=async(f,a)=>{const{data,error}=await sb.rpc(f,a);if(error)throw error;return data};
 const q=async p=>{const{data,error}=await p;if(error)throw error;return data};
 const show=(id,on)=>{$('#'+id).hidden=!on};
@@ -86,7 +87,7 @@ const card=i=>`<button class="card" data-item="${i.id}">${i.thumb?`<img src="${e
 async function draw(){
   const c=$('#cal');
   if(!door){
-    c.innerHTML=cal.start&&cal.days?`<div class="doors">`+cal.doors.map(d=>`<button class="door${d.open?' open':''}" data-door="${d.n}" title="${dm(d.n)}">${d.image?`<img src="${esc(d.image)}" alt="${lab(d.n)}">`:`<b>${lab(d.n)}</b>`}${isAdmin?`<small>${dm(d.n)} · ${d.items}</small>`:''}</button>`).join('')+`</div><p class="note" id="msg">${esc(msg)}</p>`
+    c.innerHTML=cal.start&&cal.days?`<div class="doors">`+cal.doors.map(d=>`<button class="door${d.open?' open':''}" data-door="${d.n}" title="${dm(d.n)}">${d.image?`<img src="${esc(d.image)}" alt="${lab(d.n)}">`:`<b>${lab(d.n)}</b>`}${isAdmin?`<small>${dm(d.n)} · ${d.items}</small>`:''}</button>`).join('')+'</div>'
       :`<p>${esc(txt('advent_soon'))}</p>`;
     return;
   }
@@ -149,10 +150,11 @@ $('#cal').onclick=e=>{const b=e.target.closest('[data-door],[data-item],[data-ho
   if(d.del){const i=items.find(x=>x.id===d.del);
     if(confirm('Diesen Inhalt aus dem Kalender löschen? Das lässt sich nicht rückgängig machen. Die ursprüngliche Geschichte im Kreis bleibt erhalten.'))act(async()=>{await q(sb.from('advent_items').delete().eq('id',i.id));if(i.file)await bucket().remove([i.file])});
     return}
-  msg='';
-  if(d.door){const x=cal.doors.find(x=>x.n===+d.door);if(x.open||isAdmin)door=x.n;else msg=txt('advent_closed').replace('{date}',dm(x.n,{day:'numeric',month:'long'}))}
+  if(d.door){const x=cal.doors.find(x=>x.n===+d.door);if(x.open||isAdmin)door=x.n;else{$('#popmsg').textContent=txt('advent_closed').replace('{date}',dm(x.n,{day:'numeric',month:'long'}));$('#pop').showModal();return}}
   if(d.item)item=d.item;if('up' in d)item=null;if('home' in d)door=item=null;
-  act(async()=>{}).then(()=>msg?$('#msg').scrollIntoView({block:'nearest'}):scrollTo({top:$('#cal').offsetTop-16,behavior:'smooth'}))};
+  act(async()=>{}).then(()=>scrollTo({top:$('#cal').offsetTop-16,behavior:'smooth'}))};
+// the closed-door message: closes with its button, Esc or a click beside it
+$('#pop').onclick=e=>{if(e.target===e.currentTarget||e.target.matches('button'))$('#pop').close()};
 $('#cal').addEventListener('change',e=>{if(e.target.name!=='kind'||!e.target.form.matches('#add'))return;const k=e.target.value,f=e.target.form;
   f.querySelector('[data-for=story]').hidden=k!=='story';f.querySelector('[data-for=file]').hidden=k==='story';f.elements.file.accept=k+'/*'});
 $('#cal').addEventListener('submit',e=>{e.preventDefault();const f=e.target,el=f.elements;
