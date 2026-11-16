@@ -131,3 +131,9 @@ html:has(body.advent){background:radial-gradient(1.5px 1.5px at 20% 30%,rgb(255 
 .badge{font-size:.72rem;padding:.05rem .4rem;border-radius:4px;background:var(--mark);color:var(--ink)}
 .cform{display:grid;gap:.5rem;margin:.8rem 0 1rem}
 .cform label{display:grid;gap:.2rem;font-size:.9rem}
+/* reading: story text and captions sit on a dark, slightly see-through panel, so the light text stays easy to read on every part of the gradient */
+.reading{max-width:42rem;margin:1.5rem auto;padding:clamp(1rem,4vw,2rem) clamp(1.1rem,5vw,2.4rem);font-size:1.12rem;line-height:1.8;color:#fffaf0;background:rgb(18 10 14/.62);border:1px solid rgb(255 255 255/.12);border-radius:14px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:0 12px 30px -16px rgb(0 0 0/.6)}
+.reading p{margin:0 0 1em}.reading p:last-child{margin:0}
+/* the few lines directly on the gradient (headings, dates, back links) get a soft shadow and full strength */
+.advent header,.advent:not(.wide) #cal>h2,.advent:not(.wide) #cal>p,.advent:not(.wide) #cal>button.link{text-shadow:0 1px 3px rgb(0 0 0/.55)}
+.advent:not(.wide) #cal>.note,.advent header .note{opacity:.95}

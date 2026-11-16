@@ -119,7 +119,7 @@ async function draw(){
       media=i.kind==='video'?`<video class="cover fit" controls playsinline preload="metadata"${i.thumb?` poster="${esc(i.thumb)}"`:''} src="${esc(data.signedUrl)}"></video>`:`<img class="cover fit" src="${esc(data.signedUrl)}" alt="">`}
     else if(i.thumb)media=`<img class="cover" src="${esc(i.thumb)}" alt="">`;
     c.innerHTML=`<button class="link" data-up>← ${esc(txt('advent_back_door'))}</button><h2>${esc(i.title||KIND[i.kind])}</h2>`+(i.author?`<p class="note">${esc(txt('advent_by').replace('{name}',i.author))}</p>`:'')
-      +media+(i.body||'').split(/\n\s*\n/).filter(p=>p.trim()).map(p=>`<p class="desc">${esc(p.trim())}</p>`).join('')+'<section id="comments"></section>';
+      +media+(i.body&&i.body.trim()?`<div class="reading">${i.body.split(/\n\s*\n/).filter(p=>p.trim()).map(p=>`<p class="desc">${esc(p.trim())}</p>`).join('')}</div>`:'')+'<section id="comments"></section>';
     // the frame needs the picture's own proportions to sit tight around it (see .cover.fit)
     const m=$('.cover.fit'),ratio=()=>{const w=m.naturalWidth||m.videoWidth,h=m.naturalHeight||m.videoHeight;if(w&&h)m.style.setProperty('--r',w/h)};
     if(m){ratio();m.addEventListener(m.tagName==='VIDEO'?'loadedmetadata':'load',ratio)}
