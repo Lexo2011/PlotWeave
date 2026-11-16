@@ -70,6 +70,8 @@ async function render(){
   document.body.classList.toggle('wide',isAdmin);
   show('gate',!ses);show('cal',!!ses);show('tools',isAdmin);$('#who').textContent=isAdmin?'Bearbeitungsmodus':'';
   if(!ses)return;
+  // the database decides who is admin (is_admin() in setup.sql); say so plainly when it disagrees with this page
+  if(isAdmin&&!await rpc('is_admin'))alert(`Die Datenbank erkennt dich nicht als Admin, darum kann nichts gespeichert werden. Melde dich auf der Hauptseite ab und wieder als Admin an. (Angemeldet: ${y.data.session.user.email})`);
   cal=await rpc('advent');
   $('#begin').textContent=cal.start&&cal.days?txt('advent_begin').replace('{date}',dm(1,{day:'numeric',month:'numeric'})):'';
   if(door&&!cal.doors.some(d=>d.n===door&&(d.open||isAdmin)))door=null;
