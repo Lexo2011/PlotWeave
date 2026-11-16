@@ -3,7 +3,7 @@
 -- Nothing in the app changes, and the backup schema cannot be reached from the website.
 create schema if not exists backup;
 do $$ declare t text; s text := to_char(now() at time zone 'Europe/Berlin','YYYYMMDD_HH24MI'); begin
-  foreach t in array array['circles','members','stories','contributions','assignments','settings'] loop
+  foreach t in array array['circles','members','stories','contributions','assignments','settings','authors','advent_items','advent_doors'] loop
     execute format('create table backup.%I as table public.%I', t||'_'||s, t);
   end loop;
 end $$;

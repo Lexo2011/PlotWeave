@@ -10,6 +10,14 @@ create table if not exists stories(id uuid primary key default gen_random_uuid()
 create table if not exists contributions(id uuid primary key default gen_random_uuid(), story_id uuid references stories on delete cascade, author text not null, body text check (char_length(body) between 1 and 500), created_at timestamptz default now(), edited_at timestamptz, unique(story_id, author));
 create table if not exists assignments(id uuid primary key default gen_random_uuid(), circle_id uuid references circles on delete cascade, username text not null, story_id uuid references stories on delete cascade, done boolean default false, assigned_at timestamptz default now());
 create table if not exists settings(key text primary key, value text not null);  -- site-wide texts from the admin panel
+-- Advent calendar (advent.html): every door holds a few items. A story item is a copy the admin edits freely; the original story stays as it is.
+create table if not exists authors(username text primary key, name text not null);  -- author name shown in the calendar for a username
+create table if not exists advent_items(id uuid primary key default gen_random_uuid(), door int not null check (door > 0), pos int not null default 0,
+  kind text not null check (kind in ('story','image','video')), title text, author text, body text,
+  thumb text,   -- preview picture as a data: URL
+  file text,    -- picture or video: name of the file in the storage bucket "advent"
+  story_id uuid references stories on delete set null, created_at timestamptz default now());
+create table if not exists advent_doors(door int primary key, image text);  -- the picture on the front of a door, as a data: URL
 alter table contributions add column if not exists edited_by text;
 alter table assignments add column if not exists active boolean default true;  -- false once a new day has started
 alter table assignments add column if not exists missed boolean default false; -- the writer did not write before the next day started
@@ -57,7 +65,7 @@ insert into assignments(circle_id,username) select m.circle_id,m.username from m
   where c.last_distributed_at is null and not c.concluded and not exists(select 1 from assignments a where a.circle_id=m.circle_id and a.username=m.username);
 
 do $$ declare t text; begin
-  foreach t in array array['circles','members','stories','contributions','assignments','settings'] loop
+  foreach t in array array['circles','members','stories','contributions','assignments','settings','authors','advent_items','advent_doors'] loop
     execute format('alter table %I enable row level security', t);
     execute format('drop policy if exists admin_all on %I', t);
     execute format('create policy admin_all on %I for all to authenticated using (is_admin()) with check (is_admin())', t);
@@ -336,6 +344,38 @@ begin
   update circles set concluded=true where id=p_circle;
 end $$;
 
+-- Advent calendar. First day and number of doors are the settings advent_start and advent_days; door n opens on day n at midnight, German time.
+create or replace function advent_due(p_door int) returns boolean language sql stable security definer set search_path=public as $$
+  select coalesce(p_door between 1 and (select value::int from settings where key='advent_days')
+    and (now() at time zone 'Europe/Berlin')::date >= (select value::date from settings where key='advent_start') + p_door - 1, false) $$;
+-- The admin looks behind every door.
+create or replace function advent_open(p_door int) returns boolean language sql stable security definer set search_path=public as $$
+  select is_admin() or advent_due(p_door) $$;
+
+-- The doors: their front pictures, which ones are open, and how many items an open one holds. Nothing about what is behind a closed door.
+create or replace function advent() returns json language sql stable security definer set search_path=public as $$
+  select json_build_object('start',x.d,'days',x.n,
+    'doors',(select coalesce(json_agg(json_build_object('n',g,'open',advent_due(g),'image',(select image from advent_doors where door=g),
+      'items',case when advent_open(g) then (select count(*) from advent_items where door=g) end) order by g),'[]'::json) from generate_series(1,x.n) g))
+  from (select (select value::date from settings where key='advent_start') d, coalesce((select value::int from settings where key='advent_days'),0) n) x
+  where auth.uid() is not null $$;
+
+create or replace function advent_door(p_door int) returns json language sql stable security definer set search_path=public as $$
+  select coalesce(json_agg(json_build_object('id',id,'kind',kind,'title',title,'author',author,'body',body,'thumb',thumb,'file',file) order by pos,created_at),'[]'::json)
+  from advent_items where door=p_door and auth.uid() is not null and advent_open(p_door) $$;
+
+-- Pictures and videos are in the private storage bucket "advent": the admin uploads, everyone else gets a file only once its door is open.
+create or replace function advent_file_open(p_name text) returns boolean language sql stable security definer set search_path=public as $$
+  select exists(select 1 from advent_items where file=p_name and advent_open(door)) $$;
+insert into storage.buckets(id,name,public) values('advent','advent',false) on conflict (id) do nothing;
+drop policy if exists advent_admin on storage.objects;
+create policy advent_admin on storage.objects for all to authenticated using (bucket_id='advent' and is_admin()) with check (bucket_id='advent' and is_admin());
+drop policy if exists advent_read on storage.objects;
+create policy advent_read on storage.objects for select to authenticated using (bucket_id='advent' and advent_file_open(name));
+
+revoke execute on function advent_due(int), advent_open(int) from public, anon, authenticated;
+revoke execute on function advent(), advent_door(int), advent_file_open(text) from public, anon;
+grant execute on function advent(), advent_door(int), advent_file_open(text) to authenticated;
 revoke execute on function do_new_day(uuid), pair_up(boolean[],int,int), last_slot(time,text), circle_changed() from public, anon, authenticated;
 revoke execute on function is_admin(), tick(), my_state(text), join_circle(text,uuid), approve_member(uuid,text), remove_member(uuid,text), submit_turn(text,text), edit_turn(text,text), run_new_day(uuid), start_final_round(uuid), circle_ready(uuid), conclude_circle(uuid), published_stories(), published_story(uuid) from public, anon;
 grant execute on function is_admin(), tick(), my_state(text), join_circle(text,uuid), approve_member(uuid,text), remove_member(uuid,text), submit_turn(text,text), edit_turn(text,text), run_new_day(uuid), start_final_round(uuid), circle_ready(uuid), conclude_circle(uuid), published_stories(), published_story(uuid) to authenticated;

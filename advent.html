@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Adventskalender</title>
+<!-- Colour of the day, as in index.html. -->
+<script>(()=>{const d=new Date();let x=Math.imul((d.getFullYear()*372+d.getMonth()*31+d.getDate())^0x9e3779b9,0x85ebca6b);x^=x>>>13;x=Math.imul(x,0xc2b2ae35);x^=x>>>16;document.documentElement.style.setProperty('--hue',(x>>>0)%360)})()</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Almendra:wght@700&family=Fraunces:opsz,wght@9..144,600&family=Literata:opsz,wght@7..72,400;7..72,600&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="advent">
+<header>
+  <a class="home" href="index.html" data-t="advent_home">Home</a>
+  <div class="topbar"><span id="who"></span></div>
+  <h1 data-t="advent_title">Adventskalender</h1>
+  <p data-t="advent_intro">Jeden Tag öffnet sich ein neues Türchen.</p>
+  <p id="begin"></p>
+</header>
+<main>
+  <form id="gate" hidden>
+    <label for="sitepw" data-t="gate_label">Passwort</label>
+    <input id="sitepw" type="password" required autocomplete="current-password">
+    <button data-t="gate_button">Eintreten</button>
+  </form>
+  <section id="tools" hidden>
+    <h2>Kalender bearbeiten</h2>
+    <p class="note">Du siehst alle Türchen, auch die noch geschlossenen. <a href="index.html">Zur Verwaltung</a></p>
+    <details><summary>Kalendereinstellungen</summary><form id="cfg" class="fields"></form></details>
+    <details><summary>Autorennamen</summary><form id="authors" class="fields"></form></details>
+  </section>
+  <section id="cal" hidden></section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="advent.js"></script>
+</body>
+</html>

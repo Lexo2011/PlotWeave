@@ -17,10 +17,10 @@ A German-language collaborative story site: writers in a "circle" each start a s
 - Code style: compact plain JavaScript and SQL, short comments only where something is not obvious.
 - The site password and admin credentials are not in the repository. Ask the user if you need them.
 
-## Current phase: advent calendar
-The next step is an advent calendar built from the stories written so far. The user will pitch the ideas, so ask rather than assume. Questions likely to come up:
-- Which stories go in (all of a circle, only published ones, picked by the admin) and how they map to 24 doors.
-- Whether doors open by date (1 to 24 December, in which time zone) and what a closed door shows.
-- Whether it is part of the existing site behind the site password or a separate page, and who may see it.
-- Whether authors stay anonymous (they do everywhere else) and whether story pictures are used.
-- Published stories are available to logged-in visitors through `published_stories()` and `published_story(id)`.
+## Advent calendar
+`advent.html` / `advent.js` are the calendar, a separate page behind the site password; the README lists what it does. Decisions the user made:
+- One door per day; first day and number of doors are settings (`advent_start`, `advent_days`), so it may start before 1 December. Doors open strictly by date (midnight, Europe/Berlin), enforced in `advent_open()`.
+- Layout follows the user's sketch: centred title, home link top left, four doors per row, one picture per door (`advent_doors`), numbers counting down.
+- Items behind a door (`advent_items`) are stories, pictures and videos. Story items are freely editable copies; files are in the private storage bucket `advent`.
+- The calendar is the one place where an author is shown: a free text field, prefilled with the author name (`authors` table) of whoever started the story. Usernames and who wrote which paragraph stay hidden.
+- The admin edits the calendar on `advent.html` itself, using the admin session from `index.html`.
