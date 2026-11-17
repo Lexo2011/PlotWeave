@@ -47,7 +47,8 @@ Only what is needed to connect and log in stays in `config.js`:
 - Door n opens on its day at midnight, German time, and stays open. The database does not hand out what is behind a closed door, and the storage bucket does not hand out its files.
 - Each door can have its own front picture (visible to everyone, also while the door is closed) and holds any number of items: stories, pictures and videos.
 - A story item is a copy of a story from a circle (or starts empty). Title, author, text and preview picture are edited freely; the original story is not touched.
-- "Autorennamen" maps usernames to author names. A copied story gets the author name of whoever started it; the admin can change it. Usernames are never shown in the calendar.
+- "Autorennamen" maps usernames to author names. A story shows the author name of whoever wrote its first paragraph, unless the admin types another author for it. Pictures and videos show only a typed author. The wording of the author line is set separately for stories, pictures and videos. Usernames are never shown in the calendar.
+- Every item can have a short text (an abstract or similar) that is shown on its card in the door.
 - Pictures and videos are uploaded to the private Supabase storage bucket `advent` (created by `setup.sql`). The Supabase plan limits the file size (free plan: 50 MB per file, 1 GB in total).
 - Editing: log in as admin on the main page, then open `advent.html` (link "Adventskalender bearbeiten" in the admin panel). The admin sees behind every door.
 - Comments: under every item, everyone with the site password can comment and answer comments, under their username (the one from the main page, or typed once on the calendar page). No likes. Writer and admin can change or delete a comment; deleting only sets `deleted_at`, a deleted comment with answers stays as a placeholder, and the admin can bring it back. Comments can be read and written only once the item's door is open.

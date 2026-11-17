@@ -137,3 +137,4 @@ html:has(body.advent){background:radial-gradient(1.5px 1.5px at 20% 30%,rgb(255 
 /* the few lines directly on the gradient (headings, dates, back links) get a soft shadow and full strength */
 .advent header,.advent:not(.wide) #cal>h2,.advent:not(.wide) #cal>p,.advent:not(.wide) #cal>button.link{text-shadow:0 1px 3px rgb(0 0 0/.55)}
 .advent:not(.wide) #cal>.note,.advent header .note{opacity:.95}
+.card .summary{font-weight:400;font-size:.92rem;line-height:1.55;white-space:pre-line}

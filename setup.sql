@@ -17,6 +17,7 @@ create table if not exists advent_items(id uuid primary key default gen_random_u
   thumb text,   -- preview picture as a data: URL
   file text,    -- picture or video: name of the file in the storage bucket "advent"
   story_id uuid references stories on delete set null, created_at timestamptz default now());
+alter table advent_items add column if not exists summary text;  -- optional short text (abstract) on the item's card in the door
 create table if not exists advent_doors(door int primary key, image text);  -- the picture on the front of a door, as a data: URL
 -- Comments under the items, and answers to them (parent_id). Writer and admin can change or delete one; deleting only sets deleted_at.
 create table if not exists advent_comments(id uuid primary key default gen_random_uuid(), item_id uuid references advent_items on delete set null,
@@ -365,9 +366,13 @@ create or replace function advent() returns json language sql stable security de
   from (select (select value::date from settings where key='advent_start') d, coalesce((select value::int from settings where key='advent_days'),0) n) x
   where auth.uid() is not null $$;
 
+-- 'author' is what the admin typed; 'auto' is the author name of whoever wrote the first paragraph of the story it was copied from
+-- (shown when the admin typed nothing, so a name added later under Autorennamen shows up by itself). Never a username.
 create or replace function advent_door(p_door int) returns json language sql stable security definer set search_path=public as $$
-  select coalesce(json_agg(json_build_object('id',id,'kind',kind,'title',title,'author',author,'body',body,'thumb',thumb,'file',file) order by pos,created_at),'[]'::json)
-  from advent_items where door=p_door and auth.uid() is not null and advent_open(p_door) $$;
+  select coalesce(json_agg(json_build_object('id',i.id,'kind',i.kind,'title',i.title,'author',i.author,'summary',i.summary,'body',i.body,'thumb',i.thumb,'file',i.file,
+    'auto',(select a.name from contributions co join authors a on a.username=co.author where co.story_id=i.story_id and not co.final order by co.created_at limit 1))
+    order by i.pos,i.created_at),'[]'::json)
+  from advent_items i where i.door=p_door and auth.uid() is not null and advent_open(p_door) $$;
 
 -- Pictures and videos are in the private storage bucket "advent": the admin uploads, everyone else gets a file only once its door is open.
 create or replace function advent_file_open(p_name text) returns boolean language sql stable security definer set search_path=public as $$

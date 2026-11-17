@@ -14,7 +14,9 @@ const TEXTS=[
   ['advent_ok','Knopf, der die Meldung zum geschlossenen Türchen schließt','OK'],
   ['advent_door','Überschrift eines Türchens ({n} wird ersetzt)','Türchen {n}'],
   ['advent_empty','Wenn hinter einem Türchen nichts ist','Hinter diesem Türchen ist noch nichts.'],
-  ['advent_by','Autorenzeile ({name} wird ersetzt)','von {name}'],
+  ['advent_by','Autorenzeile bei Geschichten ({name} wird ersetzt)','von {name}'],
+  ['advent_by_image','Autorenzeile bei Bildern ({name} wird ersetzt)','Bild: {name}'],
+  ['advent_by_video','Autorenzeile bei Videos ({name} wird ersetzt)','Video: {name}'],
   ['advent_back','Link vom Türchen zurück zum Kalender','Zurück zum Kalender'],
   ['advent_back_door','Link von einem Inhalt zurück zum Türchen','Zurück zum Türchen'],
   ['advent_comments','Überschrift der Kommentare','Kommentare'],
@@ -101,7 +103,9 @@ async function render(){
   await draw();
 }
 
-const card=i=>`<button class="card" data-item="${i.id}">${i.thumb?`<img src="${esc(i.thumb)}" alt="">`:`<span class="noimg">${KIND[i.kind]}</span>`}<span>${esc(i.title||KIND[i.kind])}</span>${i.author?`<span class="note">${esc(txt('advent_by').replace('{name}',i.author))}</span>`:''}</button>`;
+// the author line: what the admin typed, else (stories) the author name of whoever wrote the first paragraph; its wording depends on the kind
+const by=i=>{const n=i.author||i.auto;return n?txt(i.kind==='story'?'advent_by':'advent_by_'+i.kind).replace('{name}',n):''};
+const card=i=>`<button class="card" data-item="${i.id}">${i.thumb?`<img src="${esc(i.thumb)}" alt="">`:`<span class="noimg">${KIND[i.kind]}</span>`}<span>${esc(i.title||KIND[i.kind])}</span>${i.summary?`<span class="summary">${esc(i.summary)}</span>`:''}${by(i)?`<span class="note">${esc(by(i))}</span>`:''}</button>`;
 
 async function draw(){
   const c=$('#cal');document.body.classList.toggle('indoor',!!door&&!item);
@@ -118,7 +122,7 @@ async function draw(){
     if(i.file){const{data,error}=await bucket().createSignedUrl(i.file,3600);if(error)throw error;
       media=i.kind==='video'?`<video class="cover fit" controls playsinline preload="metadata"${i.thumb?` poster="${esc(i.thumb)}"`:''} src="${esc(data.signedUrl)}"></video>`:`<img class="cover fit" src="${esc(data.signedUrl)}" alt="">`}
     else if(i.thumb)media=`<img class="cover" src="${esc(i.thumb)}" alt="">`;
-    c.innerHTML=`<button class="link" data-up>← ${esc(txt('advent_back_door'))}</button><h2>${esc(i.title||KIND[i.kind])}</h2>`+(i.author?`<p class="note">${esc(txt('advent_by').replace('{name}',i.author))}</p>`:'')
+    c.innerHTML=`<button class="link" data-up>← ${esc(txt('advent_back_door'))}</button><h2>${esc(i.title||KIND[i.kind])}</h2>`+(by(i)?`<p class="note">${esc(by(i))}</p>`:'')
       +media+(i.body&&i.body.trim()?`<div class="reading">${i.body.split(/\n\s*\n/).filter(p=>p.trim()).map(p=>`<p class="desc">${esc(p.trim())}</p>`).join('')}</div>`:'')+'<section id="comments"></section>';
     // the frame needs the picture's own proportions to sit tight around it (see .cover.fit)
     const m=$('.cover.fit'),ratio=()=>{const w=m.naturalWidth||m.videoWidth,h=m.naturalHeight||m.videoHeight;if(w&&h)m.style.setProperty('--r',w/h)};
@@ -137,7 +141,8 @@ function editor(){
   return `<h3>Bild auf dem Türchen</h3><form class="fields pub" id="front">${img?`<img class="thumb" src="${esc(img)}" alt="">`:''}<label>Bild${img?' ersetzen':''} (quadratisch, am besten mit der Zahl darauf)<input name="image" type="file" accept="image/*"></label>`
     +(img?'<label class="check"><input name="noimg" type="checkbox"> Bild entfernen</label>':'')+'<p class="note">Dieses Bild sehen alle, auch solange das Türchen geschlossen ist. Ohne Bild zeigt das Türchen nur seine Zahl.</p><button>Bild speichern</button></form>'
     +'<h3>Inhalte bearbeiten</h3>'+items.map(i=>`<form class="fields pub" data-edit="${i.id}"><h4>${KIND[i.kind]}</h4>`
-    +`<label>Titel<input name="title" maxlength="200" value="${esc(i.title||'')}"></label><label>Autor<input name="author" maxlength="200" value="${esc(i.author||'')}"></label>`
+    +`<label>Titel<input name="title" maxlength="200" value="${esc(i.title||'')}"></label><label>Autor${i.kind==='story'?' (leer: wer den ersten Absatz geschrieben hat)':''}<input name="author" maxlength="200" value="${esc(i.author||'')}" placeholder="${esc(i.auto||'')}"></label>`
+    +`<label class="full">Kurztext in der Übersicht (optional, z. B. ein Abstract)<textarea name="summary" rows="2" maxlength="600">${esc(i.summary||'')}</textarea></label>`
     +`<label class="full">${i.kind==='story'?'Geschichte (eine Leerzeile trennt Absätze)':'Text dazu'}<textarea name="body" rows="${i.kind==='story'?12:2}">${esc(i.body||'')}</textarea></label>`
     +`<label>Vorschaubild${i.thumb?' ersetzen':''}<input name="thumb" type="file" accept="image/*"></label>`
     +(i.thumb?`<img class="thumb" src="${esc(i.thumb)}" alt=""><label class="check"><input name="nothumb" type="checkbox"> Vorschaubild entfernen</label>`:'')
@@ -162,7 +167,7 @@ async function renderTools(){
     +'<h4>Texte</h4>'+TEXTS.map(([k,l,d])=>`<label>${l}<input name="${k}" value="${esc(site[k]||'')}" placeholder="${esc(d)}"></label>`).join('')
     +'<p class="note">Ein leeres Textfeld verwendet den grau angezeigten Text.</p><button>Kalendereinstellungen speichern</button>';
   const users=[...new Set([...m.map(x=>x.username),...s.map(x=>x.starter),...a.map(x=>x.username)])].sort();
-  $('#authors').innerHTML='<p class="note">Wird eine Geschichte in den Kalender übernommen, steht als Autor der Autorenname der Person, die sie begonnen hat. Die Benutzernamen selbst sieht im Kalender niemand.</p>'
+  $('#authors').innerHTML='<p class="note">Bei einer Geschichte steht als Autor der Autorenname der Person, die ihren ersten Absatz geschrieben hat – außer du trägst bei der Geschichte selbst einen Autor ein. Änderungen hier wirken sofort auf alle Geschichten. Wer hier keinen Autorennamen hat, erscheint ohne Autor; die Benutzernamen selbst sieht im Kalender niemand.</p>'
     +users.map(u=>`<label>${esc(u)}<input name="${esc(u)}" maxlength="80" value="${esc(names[u]||'')}"></label>`).join('')+'<button>Autorennamen speichern</button>';
 }
 
@@ -228,12 +233,12 @@ $('#cal').addEventListener('submit',e=>{e.preventDefault();const f=e.target,el=f
   if(f.id==='add')return act(async()=>{const kind=el.kind.value,file=el.file.files[0],row={door,kind,pos:Math.max(0,...used.filter(x=>x.door===door).map(x=>x.pos))+1};
     if(kind==='story'){if(el.story.value){
       const s=await q(sb.from('stories').select('title,image,starter,contributions(body,created_at)').eq('id',el.story.value).single());
-      Object.assign(row,{story_id:el.story.value,title:s.title,author:names[s.starter]||null,body:s.contributions.sort((a,b)=>a.created_at<b.created_at?-1:1).map(x=>x.body).join('\n\n'),thumb:s.image?await shrink(await blob(s.image),640):null})}}
+      Object.assign(row,{story_id:el.story.value,title:s.title,body:s.contributions.sort((a,b)=>a.created_at<b.created_at?-1:1).map(x=>x.body).join('\n\n'),thumb:s.image?await shrink(await blob(s.image),640):null})}}
     else{if(!file)throw new Error('Wähle zuerst eine Datei aus.');
       row.thumb=kind==='image'?await shrink(file,640):await frame(file);row.file=await upload(file,kind);row.title=file.name.replace(/\.[^.]*$/,'')}
     await q(sb.from('advent_items').insert(row))});
   const id=f.dataset.edit,i=items.find(x=>x.id===id);if(!i)return;
-  act(async()=>{const up={title:el.title.value.trim()||null,author:el.author.value.trim()||null,body:el.body.value.trim()||null,door:lab(+el.door.value),pos:+el.pos.value},t=el.thumb.files[0],file=el.file&&el.file.files[0];
+  act(async()=>{const up={title:el.title.value.trim()||null,author:el.author.value.trim()||null,summary:el.summary.value.trim()||null,body:el.body.value.trim()||null,door:lab(+el.door.value),pos:+el.pos.value},t=el.thumb.files[0],file=el.file&&el.file.files[0];
     if(t)up.thumb=await shrink(t,640);else if(el.nothumb&&el.nothumb.checked)up.thumb=null;
     if(file){up.file=await upload(file,i.kind);if(!t&&i.kind==='image')up.thumb=await shrink(file,640)}
     await q(sb.from('advent_items').update(up).eq('id',id));
