@@ -23,8 +23,7 @@ const SITE=[
   ['finished_heading','Überschrift der veröffentlichten Geschichten','Veröffentlichte Geschichten'],
   ['untitled','Name einer Geschichte ohne Titel','Ohne Titel'],
   ['back','Link von einer Geschichte zurück zur Liste','Zurück zur Liste'],
-  ['countdown_title','Überschrift des Countdowns bis zum Start des Adventskalenders','Der Adventskalender öffnet bald'],
-  ['countdown_text','Text unter dem Countdown','Bis dahin sind die Kreise geschlossen.']];
+  ['countdown_title','Überschrift des Countdowns bis zum Start des Adventskalenders','Der Adventskalender öffnet bald']];
 // Texts a writer sees inside a circle are stored on that circle (circles.texts).
 const CIRCLE=[
   ['start','Wenn jemand eine Geschichte beginnen soll','Beginne eine neue Geschichte. Schreibe ihren ersten Absatz.'],
