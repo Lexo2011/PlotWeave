@@ -22,7 +22,9 @@ const SITE=[
   ['pending','Wenn jemand auf die Bestätigung wartet ({name} wird ersetzt)','Deine Anfrage für „{name}“ wartet noch auf die Bestätigung.'],
   ['finished_heading','Überschrift der veröffentlichten Geschichten','Veröffentlichte Geschichten'],
   ['untitled','Name einer Geschichte ohne Titel','Ohne Titel'],
-  ['back','Link von einer Geschichte zurück zur Liste','Zurück zur Liste']];
+  ['back','Link von einer Geschichte zurück zur Liste','Zurück zur Liste'],
+  ['countdown_title','Überschrift des Countdowns bis zum Start des Adventskalenders','Der Adventskalender öffnet bald'],
+  ['countdown_text','Text unter dem Countdown','Bis dahin sind die Kreise geschlossen.']];
 // Texts a writer sees inside a circle are stored on that circle (circles.texts).
 const CIRCLE=[
   ['start','Wenn jemand eine Geschichte beginnen soll','Beginne eine neue Geschichte. Schreibe ihren ersten Absatz.'],
@@ -66,9 +68,24 @@ async function loadSite(){
   site=Object.fromEntries(data.map(x=>[x.key,x.value]));localStorage.setItem('site',JSON.stringify(site));applySite();
 }
 
+// Until the advent calendar starts (fixed for now: 27 November 2026, midnight German time) the main page shows only a countdown.
+// The admin still gets in: when already logged in, or through index.html#admin.
+const berlin=d=>{const t=new Date(d+'T00:00:00Z');return new Date(t-(new Date(t.toLocaleString('en-US',{timeZone:'Europe/Berlin'}))-new Date(t.toLocaleString('en-US',{timeZone:'UTC'}))))};
+let clock;
+function countdown(until){
+  const unit=(n,a,b)=>`<div><b>${n}</b><span>${n===1?a:b}</span></div>`;
+  const f=()=>{const s=Math.max(0,Math.ceil((until-new Date())/1000));
+    if(!s){clearInterval(clock);clock=null;render();return}
+    $('#clock').innerHTML=unit(Math.floor(s/86400),'Tag','Tage')+unit(Math.floor(s/3600)%24,'Stunde','Stunden')+unit(Math.floor(s/60)%60,'Minute','Minuten')+unit(s%60,'Sekunde','Sekunden')};
+  f();if(!clock)clock=setInterval(f,1000);
+}
 async function render(){
   const[x,y]=await Promise.all([siteC.auth.getSession(),adminC.auth.getSession()]);
   isAdmin=!!y.data.session&&y.data.session.user.email===ADMIN_EMAIL;sb=isAdmin?adminC:siteC;
+  const until=berlin('2026-11-27'),wait=!isAdmin&&location.hash!=='#admin'&&until>new Date();
+  show('countdown',wait);
+  if(wait){['gate','login','app','admin','finished','out'].forEach(i=>show(i,false));$('#who').textContent='';countdown(until);return}
+  if(clock){clearInterval(clock);clock=null}
   const ses=x.data.session||isAdmin;
   me=isAdmin?ADMIN:(ses?localStorage.getItem('author'):null);
   if(me===ADMIN&&!isAdmin)me=null;
@@ -218,5 +235,6 @@ $('#admin').onclick=e=>{const d=e.target.dataset;
   if(d.newday&&confirm('Den nächsten Tag für diesen Kreis starten? Wer bis jetzt nicht geschrieben hat, wird übersprungen, und der Absatz von gestern kann nicht mehr geändert werden.'))act(async()=>{alert(await rpc('run_new_day',{p_circle:d.newday})+' Schreibende sind jetzt an der Reihe.')});
   // deleting only archives: the circle disappears everywhere but stays in the database
   if(d.del&&confirm('Diesen Kreis löschen? Er verschwindet für alle. Die Daten bleiben archiviert in der Datenbank.'))act(async()=>{const{error}=await sb.from('circles').update({archived_at:new Date().toISOString()}).eq('id',d.del);if(error)throw error})};
+window.onhashchange=()=>render().catch(x=>alert(x.message));
 loadSite().then(render).catch(x=>alert(x.message));
 }

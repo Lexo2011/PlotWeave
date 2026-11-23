@@ -39,6 +39,7 @@ Only what is needed to connect and log in stays in `config.js`:
 - A writer can change their paragraph until the next day starts.
 - When a story has only a few paragraphs left (3 by default, set per circle; 0 turns it off), the writer continuing it is told so, and on the last paragraph that it is the last one.
 - How much of a story a writer sees (first N and last N paragraphs) is enforced by the database.
+- Until the advent calendar starts (fixed in `app.js` for now: 27 November 2026, midnight German time) the main page shows only a countdown; circles, login and published stories come back when it reaches zero. The admin gets in through `index.html#admin` (or is already logged in). Heading and text of the countdown are in the site settings.
 - The background colour changes every day (same colour for everyone on the same date).
 
 ## Advent calendar

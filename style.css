@@ -53,6 +53,11 @@ form.inline input{flex:1}
 .final{margin:1rem 0;padding:1rem 1.2rem;font-size:1.5rem;font-weight:600;line-height:1.3;text-align:center;color:#fff;background:#d11a1a;border-radius:10px;box-shadow:0 0 0 4px rgb(209 26 26/.25);animation:blink 1.2s ease-in-out infinite}
 @keyframes blink{50%{opacity:.35}}
 @media (prefers-reduced-motion:reduce){.final{animation:none}}
+#countdown{text-align:center}
+#clock{display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem;margin:1.4rem 0}
+#clock div{min-width:0;padding:.9rem .2rem;background:#fff;border-radius:10px}
+#clock b{display:block;font:600 clamp(2rem,9vw,3.4rem)/1 Fraunces,Georgia,serif}
+#clock span{font-size:.85rem;opacity:.7}
 .notice{margin:.8rem 0;padding:.7rem 1rem;font-size:.92rem;background:#fff6dc;border-left:4px solid #e0a100;border-radius:6px}
 .notice ul{margin:.3rem 0;padding-left:1.2rem}
 .tablewrap{overflow-x:auto;margin:.8rem 0}
