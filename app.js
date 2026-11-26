@@ -67,8 +67,8 @@ async function loadSite(){
   site=Object.fromEntries(data.map(x=>[x.key,x.value]));localStorage.setItem('site',JSON.stringify(site));applySite();
 }
 
-// Until the advent calendar starts (fixed for now: 27 November 2026, midnight German time) the main page shows only a countdown.
-// The admin still gets in: when already logged in, or through index.html#admin.
+// Until the advent calendar starts (fixed for now: 27 November 2026, midnight German time) the main page shows only a countdown;
+// from then on it sends visitors to the calendar. The admin still gets in: when already logged in, or through index.html#admin.
 const berlin=d=>{const t=new Date(d+'T00:00:00Z');return new Date(t-(new Date(t.toLocaleString('en-US',{timeZone:'Europe/Berlin'}))-new Date(t.toLocaleString('en-US',{timeZone:'UTC'}))))};
 let clock;
 function countdown(until){
@@ -82,6 +82,7 @@ async function render(){
   const[x,y]=await Promise.all([siteC.auth.getSession(),adminC.auth.getSession()]);
   isAdmin=!!y.data.session&&y.data.session.user.email===ADMIN_EMAIL;sb=isAdmin?adminC:siteC;
   const until=berlin('2026-11-27'),wait=!isAdmin&&location.hash!=='#admin'&&until>new Date();
+  if(!isAdmin&&location.hash!=='#admin'&&until<=new Date()){location.replace('advent.html');return}
   show('countdown',wait);
   if(wait){['gate','login','app','admin','finished','out'].forEach(i=>show(i,false));$('#who').textContent='';countdown(until);return}
   if(clock){clearInterval(clock);clock=null}
