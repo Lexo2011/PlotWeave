@@ -107,7 +107,10 @@ html:has(body.advent){background:radial-gradient(1.5px 1.5px at 20% 30%,rgb(255 
 .advent h1{color:#fff4d6;text-shadow:0 2px 12px rgb(0 0 0/.35)}
 .advent main>form,.advent main>section:not(#cal),.advent:not(.indoor) .wide main>#cal,.advent .card,.advent .door,#pop{color:var(--ink)}
 .advent.wide main>#cal{color:var(--ink)}
-.advent button:not(.link):not(.card):not(.door){background:#a3202c;color:#fff}
+.advent button:not(.link):not(.card):not(.door):not(.back){background:#a3202c;color:#fff}
+/* the buttons back to the door or the calendar: light pill with an arrow, staying at the top while scrolling */
+.back{position:sticky;top:.75rem;z-index:5;display:inline-flex;align-items:center;gap:.45rem;margin:0 0 1rem;padding:.6rem 1.15rem .6rem .8rem;font:600 1.05rem/1.2 Literata,Georgia,serif;color:var(--ink);background:#fff4d6;border:0;border-radius:999px;box-shadow:0 4px 14px -4px rgb(0 0 0/.6);cursor:pointer}
+.back:hover{filter:none;background:#fff}
 .advent .door{box-shadow:0 6px 16px -8px rgb(0 0 0/.6)}
 .advent main>form,.advent main>section{background:rgb(255 255 255/.92)}
 .advent:not(.wide) main>#cal{background:none}

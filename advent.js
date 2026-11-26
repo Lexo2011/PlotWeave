@@ -7,7 +7,6 @@ const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 const TEXTS=[
   ['advent_title','Name des Kalenders','Adventskalender'],
   ['advent_intro','Text unter dem Namen','Jeden Tag öffnet sich ein neues Türchen.'],
-  ['advent_home','Link oben links zur Hauptseite','Home'],
   ['advent_begin','Zeile über den Türchen ({date} wird ersetzt)','Beginn: {date}'],
   ['advent_soon','Solange der Kalender noch nicht eingerichtet ist','Der Kalender ist noch nicht fertig. Schau bald wieder vorbei.'],
   ['advent_closed','Beim Klick auf ein geschlossenes Türchen ({date} wird ersetzt)','Dieses Türchen öffnet sich am {date}.'],
@@ -36,6 +35,8 @@ const TEXTS=[
   ['advent_deleted','Platzhalter für einen gelöschten Kommentar, auf den geantwortet wurde','Dieser Kommentar wurde gelöscht.'],
   ['gate_label','Beschriftung des Passwortfelds (gilt auch auf der Hauptseite)','Passwort'],
   ['gate_button','Knopf unter dem Passwortfeld (gilt auch auf der Hauptseite)','Eintreten']];
+// the arrow in the buttons that lead back
+const BACK='<svg viewBox="0 0 24 24" width="1.15em" height="1.15em" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const KIND={story:'Geschichte',image:'Bild',video:'Video'};
 let site={};try{site=JSON.parse(localStorage.getItem('site'))||{}}catch{}
 const txt=k=>site[k]||TEXTS.find(x=>x[0]===k)[2];
@@ -122,7 +123,7 @@ async function draw(){
     if(i.file){const{data,error}=await bucket().createSignedUrl(i.file,3600);if(error)throw error;
       media=i.kind==='video'?`<video class="cover fit" controls playsinline preload="metadata"${i.thumb?` poster="${esc(i.thumb)}"`:''} src="${esc(data.signedUrl)}"></video>`:`<img class="cover fit" src="${esc(data.signedUrl)}" alt="">`}
     else if(i.thumb)media=`<img class="cover" src="${esc(i.thumb)}" alt="">`;
-    c.innerHTML=`<button class="link" data-up>← ${esc(txt('advent_back_door'))}</button><h2>${esc(i.title||KIND[i.kind])}</h2>`+(by(i)?`<p class="note">${esc(by(i))}</p>`:'')
+    c.innerHTML=`<button class="back" data-up>${BACK}${esc(txt('advent_back_door'))}</button><h2>${esc(i.title||KIND[i.kind])}</h2>`+(by(i)?`<p class="note">${esc(by(i))}</p>`:'')
       +media+(i.body&&i.body.trim()?`<div class="reading">${i.body.split(/\n\s*\n/).filter(p=>p.trim()).map(p=>`<p class="desc">${esc(p.trim())}</p>`).join('')}</div>`:'')+'<section id="comments"></section>';
     // the frame needs the picture's own proportions to sit tight around it (see .cover.fit)
     const m=$('.cover.fit'),ratio=()=>{const w=m.naturalWidth||m.videoWidth,h=m.naturalHeight||m.videoHeight;if(w&&h)m.style.setProperty('--r',w/h)};
@@ -130,7 +131,7 @@ async function draw(){
     replyTo=editId=null;await loadComments();
     return;
   }
-  c.innerHTML=`<button class="link" data-home>← ${esc(txt('advent_back'))}</button>`+head
+  c.innerHTML=`<button class="back" data-home>${BACK}${esc(txt('advent_back'))}</button>`+head
     +(items.length?`<div class="cards">${items.map(card).join('')}</div>`:`<p>${esc(txt('advent_empty'))}</p>`)+(isAdmin?editor():'');
 }
 
